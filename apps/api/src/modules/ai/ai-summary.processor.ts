@@ -89,7 +89,9 @@ export class AiSummaryProcessor extends WorkerHost {
       config: {
         systemInstruction:
           'You are a CRM assistant that analyzes customer communication threads. Respond with ONLY valid JSON, no markdown fences, no extra text.',
-        maxOutputTokens: 1024,
+        // gemini-flash-latest spends ~800 tokens on internal "thinking" before the visible JSON, so a low
+        // budget here truncates the response and breaks JSON.parse — keep this generous.
+        maxOutputTokens: 4096,
         responseMimeType: 'application/json',
       },
     });
