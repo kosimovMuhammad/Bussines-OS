@@ -60,4 +60,13 @@ export class CompanyController {
   ) {
     return this.companyService.updatePlan(companyId, dto, actor.id);
   }
+
+  @Get('integrations')
+  @ApiOperation({
+    summary: 'Get connection status for third-party integrations (WhatsApp, Gmail, Outlook, Telegram, Stripe, PayPal) — no secrets returned',
+  })
+  @ApiResponse({ status: 200, description: 'Integration connection status' })
+  getIntegrations(@CompanyId() companyId: string) {
+    return this.companyService.getIntegrationsStatus(companyId);
+  }
 }

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { OAuthProvider } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -50,5 +51,23 @@ export class CompanyService {
       metadata: { previousPlan: previous.plan, newPlan: dto.plan },
     });
     return { plan: company.plan };
+  }
+
+  /** Танҳо статуси пайвастшавӣ, ҳеҷ гуна маълумоти пинҳонӣ (токенҳо) баргардонида намешавад. */
+  async getIntegrationsStatus(companyId: string) {
+    const [waAccount, googleConnection, microsoftConnection] = await Promise.all([
+      this.prisma.whatsAppAccount.findFirst({ where: { companyId } }),
+      this.prisma.oAuthConnection.findFirst({ where: { companyId, provider: OAuthProvider.GOOGLE } }),
+      this.prisma.oAuthConnection.findFirst({ where: { companyId, provider: OAuthProvider.MICROSOFT } }),
+    ]);
+
+    return {
+      whatsapp: { connected: !!waAccount },
+      gmail: { connected: !!googleConnection },
+      outlook: { connected: !!microsoftConnection },
+      telegram: { connected: false, comingSoon: true },
+      stripe: { connected: false, comingSoon: true },
+      paypal: { connected: false, comingSoon: true },
+    };
   }
 }

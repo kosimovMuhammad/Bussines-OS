@@ -18,14 +18,21 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users            User[]
-  contacts         Contact[]
-  deals            Deal[]
-  tasks            Task[]
-  communications   Communication[]
-  oauthConnections OAuthConnection[]
-  waAccounts       WhatsAppAccount[]
-  auditLogs        AuditLog[]
+  users              User[]
+  contacts           Contact[]
+  deals              Deal[]
+  tasks              Task[]
+  communications     Communication[]
+  oauthConnections   OAuthConnection[]
+  waAccounts         WhatsAppAccount[]
+  auditLogs          AuditLog[]
+  invoices           Invoice[]
+  files              FileAsset[]
+  meetings           Meeting[]
+  aiQueryResults     AiQueryResult[]
+  aiEmailDrafts      AiEmailDraft[]
+  aiQuotations       AiQuotation[]
+  calendarSyncTokens CalendarSyncToken[]
 
   @@map("companies")
 }
@@ -50,13 +57,16 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  ownedContacts    Contact[]         @relation("ContactOwner")
-  ownedDeals       Deal[]            @relation("DealOwner")
-  assignedTasks    Task[]            @relation("TaskAssignee")
-  timeEntries      TimeEntry[]       @relation("TimeEntryUser")
-  oauthConnections OAuthConnection[]
-  auditLogs        AuditLog[]
-  refreshTokens    RefreshToken[]
+  ownedContacts     Contact[]          @relation("ContactOwner")
+  ownedDeals        Deal[]             @relation("DealOwner")
+  assignedTasks     Task[]             @relation("TaskAssignee")
+  timeEntries       TimeEntry[]        @relation("TimeEntryUser")
+  oauthConnections  OAuthConnection[]
+  auditLogs         AuditLog[]
+  refreshTokens     RefreshToken[]
+  uploadedFiles     FileAsset[]        @relation("FileUploader")
+  organizedMeetings Meeting[]          @relation("MeetingOrganizer")
+  calendarSyncToken CalendarSyncToken?
 
   @@index([companyId])
   @@map("users")
@@ -113,6 +123,10 @@ model Contact {
   deals          Deal[]
   tasks          Task[]
   communications Communication[]
+  invoices       Invoice[]
+  files          FileAsset[]
+  meetings       Meeting[]
+  aiEmailDrafts  AiEmailDraft[]
 
   @@index([companyId])
   @@index([phone])
@@ -137,7 +151,11 @@ model Deal {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  tasks Task[]
+  tasks        Task[]
+  invoices     Invoice[]
+  files        FileAsset[]
+  meetings     Meeting[]
+  aiQuotations AiQuotation[]
 
   @@index([companyId])
   @@index([stage])
@@ -256,14 +274,14 @@ enum MessageStatus {
 }
 
 model AiSummary {
-  id              String         @id @default(uuid())
-  communicationId String         @unique
-  communication   Communication  @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid())
+  communicationId String        @unique
+  communication   Communication @relation(fields: [communicationId], references: [id], onDelete: Cascade)
   summary         String
   sentiment       Sentiment?
   actionItems     Json?
   nextFollowUp    DateTime?
-  generatedAt     DateTime       @default(now())
+  generatedAt     DateTime      @default(now())
 
   @@map("ai_summaries")
 }
@@ -297,6 +315,7 @@ model OAuthConnection {
 enum OAuthProvider {
   GOOGLE
   MICROSOFT
+  GOOGLE_CALENDAR
 }
 
 model WhatsAppAccount {
@@ -328,4 +347,231 @@ model AuditLog {
 
   @@index([companyId])
   @@map("audit_logs")
+}
+
+// ============ INVOICING ============
+
+model Invoice {
+  id            String        @id @default(uuid())
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dealId        String?
+  deal          Deal?         @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contactId     String
+  contact       Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  invoiceNumber String
+  amount        Decimal
+  currency      String        @default("TJS")
+  status        InvoiceStatus @default(DRAFT)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  payments Payment[]
+  files    FileAsset[]
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId])
+  @@index([status])
+  @@index([contactId])
+  @@index([dealId])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  invoiceId String
+  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Decimal
+  method    PaymentMethod
+  paidAt    DateTime      @default(now())
+  notes     String?
+  createdAt DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+// ============ FILES ============
+
+model FileAsset {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId    String?
+  contact      Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  dealId       String?
+  deal         Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  invoiceId    String?
+  invoice      Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  uploadedById String
+  uploadedBy   User     @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  s3Key        String
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime @default(now())
+
+  aiQuotation AiQuotation?
+
+  @@index([companyId])
+  @@index([contactId])
+  @@index([dealId])
+  @@index([invoiceId])
+  @@map("file_assets")
+}
+
+// ============ CALENDAR ============
+
+model Meeting {
+  id              String        @id @default(uuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId       String?
+  contact         Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  dealId          String?
+  deal            Deal?         @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  title           String
+  description     String?
+  startAt         DateTime
+  endAt           DateTime
+  location        String?
+  organizerId     String
+  organizer       User          @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  attendeeUserIds String[]      @default([])
+  status          MeetingStatus @default(SCHEDULED)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  googleEventId    String?           @unique
+  googleCalendarId String?
+  syncStatus       MeetingSyncStatus @default(NOT_SYNCED)
+  syncError        String?
+  lastSyncedAt     DateTime?
+
+  @@index([companyId])
+  @@index([startAt])
+  @@index([contactId])
+  @@index([dealId])
+  @@index([organizerId])
+  @@map("meetings")
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum MeetingSyncStatus {
+  NOT_SYNCED
+  SYNCED
+  SYNC_FAILED
+}
+
+// ============ AI ============
+
+enum AiJobStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum QueryIntent {
+  STALE_CONTACTS
+  TOP_SALESPERSON
+  REVENUE_BY_PERIOD
+}
+
+model AiQueryResult {
+  id           String       @id @default(uuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  question     String
+  intent       QueryIntent?
+  status       AiJobStatus  @default(PENDING)
+  resultRows   Json?
+  answer       String?
+  errorMessage String?
+  createdAt    DateTime     @default(now())
+  completedAt  DateTime?
+
+  @@index([companyId])
+  @@map("ai_query_results")
+}
+
+model AiEmailDraft {
+  id           String      @id @default(uuid())
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId    String
+  contact      Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  context      String?
+  status       AiJobStatus @default(PENDING)
+  subject      String?
+  body         String?
+  errorMessage String?
+  createdAt    DateTime    @default(now())
+  completedAt  DateTime?
+
+  @@index([companyId])
+  @@index([contactId])
+  @@map("ai_email_drafts")
+}
+
+model AiQuotation {
+  id           String      @id @default(uuid())
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  dealId       String
+  deal         Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  items        Json
+  totalAmount  Decimal?
+  status       AiJobStatus @default(PENDING)
+  fileAssetId  String?     @unique
+  fileAsset    FileAsset?  @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
+  errorMessage String?
+  createdAt    DateTime    @default(now())
+  completedAt  DateTime?
+
+  @@index([companyId])
+  @@index([dealId])
+  @@map("ai_quotations")
+}
+
+// ============ GOOGLE CALENDAR SYNC ============
+
+model CalendarSyncToken {
+  id                String   @id @default(uuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resourceId        String
+  syncToken         String?
+  channelId         String   @unique
+  channelToken      String
+  channelExpiration DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("calendar_sync_tokens")
 }

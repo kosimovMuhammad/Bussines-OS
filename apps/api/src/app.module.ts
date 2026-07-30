@@ -20,6 +20,9 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { EmailModule } from './modules/email/email.module';
 import { AiModule } from './modules/ai/ai.module';
 import { CompanyModule } from './modules/company/company.module';
+import { InvoicingModule } from './modules/invoicing/invoicing.module';
+import { FilesModule } from './modules/files/files.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 
 @Module({
   imports: [
@@ -46,6 +49,9 @@ import { CompanyModule } from './modules/company/company.module';
     EmailModule,
     AiModule,
     CompanyModule,
+    InvoicingModule,
+    FilesModule,
+    CalendarModule,
   ],
   controllers: [HealthController],
 })

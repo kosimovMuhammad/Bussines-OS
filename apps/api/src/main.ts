@@ -57,6 +57,9 @@ async function bootstrap() {
     .addTag('Analytics & Dashboard')
     .addTag('AI')
     .addTag('Company')
+    .addTag('Invoicing')
+    .addTag('Files')
+    .addTag('Calendar')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   const swaggerTheme = new SwaggerTheme();
