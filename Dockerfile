@@ -2,7 +2,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-COPY prisma ./prisma
+COPY schema.prisma ./
 RUN npm ci
 
 COPY . .
@@ -13,9 +13,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
-COPY prisma ./prisma
+COPY schema.prisma ./
 RUN npm ci --omit=dev
 
+COPY migrations ./migrations
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
