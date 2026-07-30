@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ CORE ============
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  industry  String?
+  plan      Plan     @default(STARTER)
+  timezone  String   @default("Asia/Dushanbe")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  contacts         Contact[]
+  deals            Deal[]
+  tasks            Task[]
+  communications   Communication[]
+  oauthConnections OAuthConnection[]
+  waAccounts       WhatsAppAccount[]
+  auditLogs        AuditLog[]
+
+  @@map("companies")
+}
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+model User {
+  id           String     @id @default(uuid())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  email        String     @unique
+  passwordHash String?
+  role         Role       @default(EMPLOYEE)
+  avatarUrl    String?
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  ownedContacts    Contact[]         @relation("ContactOwner")
+  ownedDeals       Deal[]            @relation("DealOwner")
+  assignedTasks    Task[]            @relation("TaskAssignee")
+  timeEntries      TimeEntry[]       @relation("TimeEntryUser")
+  oauthConnections OAuthConnection[]
+  auditLogs        AuditLog[]
+  refreshTokens    RefreshToken[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  SALES
+  SUPPORT
+  EMPLOYEE
+  READ_ONLY
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============ CRM ============
+
+model Contact {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String?
+  email       String?
+  phone       String?
+  position    String?
+  companyName String?
+  notes       String?
+  ownerId     String?
+  owner       User?    @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deals          Deal[]
+  tasks          Task[]
+  communications Communication[]
+
+  @@index([companyId])
+  @@index([phone])
+  @@index([email])
+  @@map("contacts")
+}
+
+model Deal {
+  id                String    @id @default(uuid())
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId         String
+  contact           Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title             String
+  value             Decimal   @default(0)
+  currency          String    @default("TJS")
+  stage             DealStage @default(LEAD)
+  probability       Int       @default(0)
+  expectedCloseDate DateTime?
+  ownerId           String?
+  owner             User?     @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tasks Task[]
+
+  @@index([companyId])
+  @@index([stage])
+  @@map("deals")
+}
+
+enum DealStage {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+  assignedTo  String?
+  assignee    User?        @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  dueDate     DateTime?
+  dealId      String?
+  deal        Deal?        @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  contactId   String?
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  timeEntries TimeEntry[]
+
+  @@index([companyId])
+  @@index([assignedTo])
+  @@map("tasks")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+// ============ TIME TRACKING (Start / Stop) ============
+
+model TimeEntry {
+  id          String    @id @default(uuid())
+  companyId   String
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation("TimeEntryUser", fields: [userId], references: [id], onDelete: SetNull)
+  startedAt   DateTime  @default(now())
+  stoppedAt   DateTime?
+  durationSec Int?
+  note        String?
+  createdAt   DateTime  @default(now())
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([companyId])
+  @@map("time_entries")
+}
+
+// ============ COMMUNICATIONS ============
+
+model Communication {
+  id                String        @id @default(uuid())
+  companyId         String
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId         String?
+  contact           Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  channel           Channel
+  direction         Direction
+  content           String
+  attachments       Json?
+  providerMessageId String?       @unique
+  status            MessageStatus @default(RECEIVED)
+  timestamp         DateTime      @default(now())
+
+  aiSummary AiSummary?
+
+  @@index([companyId, contactId])
+  @@index([channel])
+  @@map("communications")
+}
+
+enum Channel {
+  WHATSAPP
+  EMAIL
+  MANUAL_NOTE
+  PHONE_CALL
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  RECEIVED
+  SENT
+  FAILED
+  QUEUED
+}
+
+model AiSummary {
+  id              String         @id @default(uuid())
+  communicationId String         @unique
+  communication   Communication  @relation(fields: [communicationId], references: [id], onDelete: Cascade)
+  summary         String
+  sentiment       Sentiment?
+  actionItems     Json?
+  nextFollowUp    DateTime?
+  generatedAt     DateTime       @default(now())
+
+  @@map("ai_summaries")
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+// ============ INTEGRATIONS ============
+
+model OAuthConnection {
+  id                    String        @id @default(uuid())
+  companyId             String
+  company               Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider              OAuthProvider
+  encryptedAccessToken  String
+  encryptedRefreshToken String?
+  scope                 String?
+  expiresAt             DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@unique([userId, provider])
+  @@map("oauth_connections")
+}
+
+enum OAuthProvider {
+  GOOGLE
+  MICROSOFT
+}
+
+model WhatsAppAccount {
+  id                   String   @id @default(uuid())
+  companyId            String
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  phoneNumberId        String   @unique
+  wabaId               String
+  encryptedAccessToken String
+  verifiedName         String?
+  createdAt            DateTime @default(now())
+
+  @@map("whatsapp_accounts")
+}
+
+// ============ AUDIT ============
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@map("audit_logs")
+}
