@@ -18,6 +18,8 @@
     "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@azure/msal-node": "^5.4.3",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
@@ -44,7 +46,8 @@
     "prisma": "^5.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "swagger-themes": "^1.4.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

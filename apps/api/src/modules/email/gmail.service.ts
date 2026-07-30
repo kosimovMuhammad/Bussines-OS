@@ -5,6 +5,8 @@ import { google } from 'googleapis';
 import { Channel, Direction, MessageStatus, OAuthProvider } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { decryptToken, encryptToken } from '../../common/crypto/token-cipher';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_EVENTS } from '../notifications/notifications.constants';
 import { SendEmailDto } from './dto/send-email.dto';
 
 const GMAIL_SCOPES = [
@@ -24,6 +26,7 @@ export class GmailService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private createOAuthClient() {
@@ -138,7 +141,7 @@ export class GmailService {
       throw new BadGatewayException(message);
     }
 
-    return this.prisma.communication.create({
+    const communication = await this.prisma.communication.create({
       data: {
         companyId,
         contactId: contact.id,
@@ -149,6 +152,10 @@ export class GmailService {
         providerMessageId: response.data.id ?? undefined,
       },
     });
+
+    this.notifications.emitToCompany(companyId, NOTIFICATION_EVENTS.EMAIL_NEW, communication);
+
+    return communication;
   }
 
   private buildRawMessage(to: string, subject: string, body: string): string {

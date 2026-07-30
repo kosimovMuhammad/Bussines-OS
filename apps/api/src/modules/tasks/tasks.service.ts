@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_EVENTS } from '../notifications/notifications.constants';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { QueryTasksDto } from './dto/query-tasks.dto';
@@ -13,6 +15,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll(companyId: string, query: QueryTasksDto) {
@@ -57,7 +60,7 @@ export class TasksService {
       await this.assertContactInCompany(companyId, dto.contactId);
     }
 
-    return this.prisma.task.create({
+    const task = await this.prisma.task.create({
       data: {
         companyId,
         title: dto.title,
@@ -71,10 +74,16 @@ export class TasksService {
       },
       include: { assignee: { select: ASSIGNEE_SELECT } },
     });
+
+    if (task.assignedTo) {
+      this.notifications.emitToCompany(companyId, NOTIFICATION_EVENTS.TASK_ASSIGNED, task);
+    }
+
+    return task;
   }
 
   async update(companyId: string, id: string, dto: UpdateTaskDto) {
-    await this.ensureExists(companyId, id);
+    const previous = await this.ensureExists(companyId, id);
     if (dto.assignedTo) {
       await this.assertUserInCompany(companyId, dto.assignedTo);
     }
@@ -87,7 +96,7 @@ export class TasksService {
 
     const { dueDate, ...rest } = dto;
 
-    return this.prisma.task.update({
+    const task = await this.prisma.task.update({
       where: { id },
       data: {
         ...rest,
@@ -95,6 +104,12 @@ export class TasksService {
       },
       include: { assignee: { select: ASSIGNEE_SELECT } },
     });
+
+    if (dto.assignedTo && dto.assignedTo !== previous.assignedTo) {
+      this.notifications.emitToCompany(companyId, NOTIFICATION_EVENTS.TASK_ASSIGNED, task);
+    }
+
+    return task;
   }
 
   async updateStatus(companyId: string, id: string, status: TaskStatus) {

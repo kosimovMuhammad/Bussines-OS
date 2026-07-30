@@ -23,4 +23,13 @@ export default () => ({
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   },
+  microsoft: {
+    clientId: process.env.MICROSOFT_CLIENT_ID,
+    clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+    redirectUri: process.env.MICROSOFT_REDIRECT_URI,
+    tenantId: process.env.MICROSOFT_TENANT_ID || 'common',
+  },
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
 });

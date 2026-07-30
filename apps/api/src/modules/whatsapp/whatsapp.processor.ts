@@ -4,7 +4,8 @@ import { Channel, Direction, MessageStatus } from '@prisma/client';
 import type { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUES } from '../../queue/queue.constants';
-import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_EVENTS } from '../notifications/notifications.constants';
 import { IncomingWhatsappMessage } from './whatsapp-webhook.util';
 
 @Processor(QUEUES.WHATSAPP_INCOMING)
@@ -13,7 +14,7 @@ export class WhatsappProcessor extends WorkerHost {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsGateway,
+    private readonly notifications: NotificationsService,
   ) {
     super();
   }
@@ -55,6 +56,6 @@ export class WhatsappProcessor extends WorkerHost {
       },
     });
 
-    this.notifications.emitToCompany(account.companyId, 'whatsapp-message', communication);
+    this.notifications.emitToCompany(account.companyId, NOTIFICATION_EVENTS.WHATSAPP_MESSAGE_NEW, communication);
   }
 }

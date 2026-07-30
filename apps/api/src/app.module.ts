@@ -18,6 +18,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ThrottlerModule } from './throttler/throttler.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { EmailModule } from './modules/email/email.module';
+import { AiModule } from './modules/ai/ai.module';
+import { CompanyModule } from './modules/company/company.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { EmailModule } from './modules/email/email.module';
     WhatsappModule,
     AnalyticsModule,
     EmailModule,
+    AiModule,
+    CompanyModule,
   ],
   controllers: [HealthController],
 })

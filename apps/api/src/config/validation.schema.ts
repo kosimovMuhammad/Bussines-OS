@@ -14,6 +14,8 @@ export const validationSchema = Joi.object({
   GOOGLE_CLIENT_SECRET: Joi.string().allow('').optional(),
   MICROSOFT_CLIENT_ID: Joi.string().allow('').optional(),
   MICROSOFT_CLIENT_SECRET: Joi.string().allow('').optional(),
+  MICROSOFT_REDIRECT_URI: Joi.string().allow('').optional(),
+  MICROSOFT_TENANT_ID: Joi.string().allow('').optional(),
 
   WHATSAPP_APP_SECRET: Joi.string().allow('').optional(),
   WHATSAPP_VERIFY_TOKEN: Joi.string().allow('').optional(),

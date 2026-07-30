@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DealStage, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_EVENTS } from '../notifications/notifications.constants';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { QueryDealsDto } from './dto/query-deals.dto';
@@ -11,6 +13,7 @@ export class DealsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async findAll(companyId: string, query: QueryDealsDto) {
@@ -76,16 +79,22 @@ export class DealsService {
   }
 
   async updateStage(companyId: string, id: string, stage: DealStage) {
-    await this.ensureExists(companyId, id);
+    const previous = await this.ensureExists(companyId, id);
     const probability = this.resolveProbability(stage);
 
-    return this.prisma.deal.update({
+    const deal = await this.prisma.deal.update({
       where: { id },
       data: {
         stage,
         ...(probability !== undefined ? { probability } : {}),
       },
     });
+
+    if (stage === DealStage.WON && previous.stage !== DealStage.WON) {
+      this.notifications.emitToCompany(companyId, NOTIFICATION_EVENTS.DEAL_WON, deal);
+    }
+
+    return deal;
   }
 
   async remove(companyId: string, id: string, actorId: string) {
