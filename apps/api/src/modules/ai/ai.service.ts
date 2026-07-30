@@ -16,9 +16,9 @@ export class AiService {
   ) {}
 
   async enqueueSummarize(companyId: string, dto: SummarizeDto) {
-    if (!this.config.get<string>('anthropic.apiKey')) {
+    if (!this.config.get<string>('gemini.apiKey')) {
       throw new InternalServerErrorException(
-        'ANTHROPIC_API_KEY танзим нашудааст — AI summarization имконнопазир аст',
+        'GEMINI_API_KEY танзим нашудааст — AI summarization имконнопазир аст',
       );
     }
 

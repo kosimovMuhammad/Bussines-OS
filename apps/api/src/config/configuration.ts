@@ -29,7 +29,7 @@ export default () => ({
     redirectUri: process.env.MICROSOFT_REDIRECT_URI,
     tenantId: process.env.MICROSOFT_TENANT_ID || 'common',
   },
-  anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY,
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY,
   },
 });

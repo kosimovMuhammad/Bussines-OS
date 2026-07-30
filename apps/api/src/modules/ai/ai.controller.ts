@@ -17,7 +17,7 @@ export class AiController {
   @ApiOperation({ summary: 'Enqueue AI summarization of a communication thread' })
   @ApiResponse({ status: 201, description: 'Summarization job queued' })
   @ApiResponse({ status: 404, description: 'Communication not found for this company' })
-  @ApiResponse({ status: 500, description: 'ANTHROPIC_API_KEY not configured' })
+  @ApiResponse({ status: 500, description: 'GEMINI_API_KEY not configured' })
   summarize(@CompanyId() companyId: string, @Body() dto: SummarizeDto) {
     return this.aiService.enqueueSummarize(companyId, dto);
   }

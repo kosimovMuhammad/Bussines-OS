@@ -2,14 +2,14 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Sentiment } from '@prisma/client';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import type { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUES } from '../../queue/queue.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NOTIFICATION_EVENTS } from '../notifications/notifications.constants';
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = 'gemini-flash-latest';
 
 export interface AiSummarizeJobData {
   communicationId: string;
@@ -38,7 +38,7 @@ function mapSentiment(value: string | undefined): Sentiment | null {
 @Processor(QUEUES.AI_SUMMARIZE)
 export class AiSummaryProcessor extends WorkerHost {
   private readonly logger = new Logger(AiSummaryProcessor.name);
-  private readonly anthropic: Anthropic | null;
+  private readonly gemini: GoogleGenAI | null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,13 +46,13 @@ export class AiSummaryProcessor extends WorkerHost {
     private readonly notifications: NotificationsService,
   ) {
     super();
-    const apiKey = this.config.get<string>('anthropic.apiKey');
-    this.anthropic = apiKey ? new Anthropic({ apiKey }) : null;
+    const apiKey = this.config.get<string>('gemini.apiKey');
+    this.gemini = apiKey ? new GoogleGenAI({ apiKey }) : null;
   }
 
   async process(job: Job<AiSummarizeJobData>) {
-    if (!this.anthropic) {
-      throw new Error('ANTHROPIC_API_KEY танзим нашудааст — AI summarization имконнопазир аст');
+    if (!this.gemini) {
+      throw new Error('GEMINI_API_KEY танзим нашудааст — AI summarization имконнопазир аст');
     }
 
     const { communicationId } = job.data;
@@ -72,41 +72,36 @@ export class AiSummaryProcessor extends WorkerHost {
       .map((message) => `[${message.timestamp.toISOString()}] ${message.direction} (${message.channel}): ${message.content}`)
       .join('\n');
 
-    const response = await this.anthropic.messages.create({
+    const response = await this.gemini.models.generateContent({
       model: MODEL,
-      max_tokens: 1024,
-      system:
-        'You are a CRM assistant that analyzes customer communication threads. Respond with ONLY valid JSON, no markdown fences, no extra text.',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            'Analyze the following communication thread and return ONLY a JSON object with exactly these fields:',
-            '- summary: string, a concise summary of the conversation',
-            '- customer_sentiment: one of "positive", "neutral", "negative"',
-            '- important_dates: array of strings, any dates/deadlines mentioned',
-            '- tasks: array of strings, action items or follow-up tasks',
-            '- next_follow_up: ISO 8601 date string or null, when to follow up next',
-            '- deal_stage: one of "lead", "qualified", "proposal", "negotiation", "won", "lost", or null if unclear',
-            '',
-            'Thread:',
-            transcript,
-          ].join('\n'),
-        },
-      ],
+      contents: [
+        'Analyze the following communication thread and return ONLY a JSON object with exactly these fields:',
+        '- summary: string, a concise summary of the conversation',
+        '- customer_sentiment: one of "positive", "neutral", "negative"',
+        '- important_dates: array of strings, any dates/deadlines mentioned',
+        '- tasks: array of strings, action items or follow-up tasks',
+        '- next_follow_up: ISO 8601 date string or null, when to follow up next',
+        '- deal_stage: one of "lead", "qualified", "proposal", "negotiation", "won", "lost", or null if unclear',
+        '',
+        'Thread:',
+        transcript,
+      ].join('\n'),
+      config: {
+        systemInstruction:
+          'You are a CRM assistant that analyzes customer communication threads. Respond with ONLY valid JSON, no markdown fences, no extra text.',
+        maxOutputTokens: 1024,
+        responseMimeType: 'application/json',
+      },
     });
 
-    const rawText = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+    const rawText = response.text ?? '';
 
     let parsed: ParsedAiSummary;
     try {
       parsed = JSON.parse(extractJsonPayload(rawText));
     } catch {
       this.logger.error(`AI барои ${communicationId} JSON-и нодуруст баргардонд: ${rawText}`);
-      throw new Error('AI аз Anthropic JSON-и нодуруст баргардонд');
+      throw new Error('AI аз Gemini JSON-и нодуруст баргардонд');
     }
 
     const actionItems: Prisma.InputJsonValue = {

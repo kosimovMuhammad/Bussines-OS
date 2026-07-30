@@ -21,7 +21,7 @@ export const validationSchema = Joi.object({
   WHATSAPP_VERIFY_TOKEN: Joi.string().allow('').optional(),
   WHATSAPP_ACCESS_TOKEN: Joi.string().allow('').optional(),
 
-  ANTHROPIC_API_KEY: Joi.string().allow('').optional(),
+  GEMINI_API_KEY: Joi.string().allow('').optional(),
 
   AWS_S3_BUCKET: Joi.string().allow('').optional(),
   AWS_ACCESS_KEY_ID: Joi.string().allow('').optional(),
