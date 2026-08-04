@@ -28,7 +28,11 @@ export class CalendarSyncInboundProcessor extends WorkerHost implements OnModule
   }
 
   async onModuleInit() {
-    await this.queue.add('renew-channels', {}, { repeat: { pattern: RENEWAL_CHECK_CRON }, jobId: RENEWAL_JOB_ID });
+    try {
+      await this.queue.add('renew-channels', {}, { repeat: { pattern: RENEWAL_CHECK_CRON }, jobId: RENEWAL_JOB_ID });
+    } catch (error) {
+      this.logger.error(`Сабти repeatable job-и calendar channel renewal ноком шуд: ${error}`);
+    }
   }
 
   async process(job: Job) {

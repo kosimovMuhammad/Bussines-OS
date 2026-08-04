@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { MeetingStatus, Prisma } from '@prisma/client';
 import type { Queue } from 'bullmq';
@@ -13,10 +13,23 @@ const MEETING_INCLUDE = { contact: true, deal: true } as const;
 
 @Injectable()
 export class CalendarService {
+  private readonly logger = new Logger(CalendarService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUES.CALENDAR_SYNC_OUTBOUND) private readonly outboundQueue: Queue<CalendarSyncOutboundJobData>,
   ) {}
+
+  // The meeting itself is already committed to Postgres by the time we enqueue
+  // outbound Google Calendar sync, so a Redis hiccup here must not turn into a
+  // false-negative 500 for a mutation that actually succeeded - log and move on.
+  private async safeEnqueueOutbound(name: string, data: CalendarSyncOutboundJobData) {
+    try {
+      await this.outboundQueue.add(name, data);
+    } catch (error) {
+      this.logger.error(`Сафи calendar-sync-outbound дастнорас аст: ${error}`);
+    }
+  }
 
   async findAll(companyId: string, query: QueryMeetingsDto) {
     const where: Prisma.MeetingWhereInput = { companyId };
@@ -66,7 +79,7 @@ export class CalendarService {
       include: MEETING_INCLUDE,
     });
 
-    await this.outboundQueue.add('create', {
+    await this.safeEnqueueOutbound('create', {
       action: 'create',
       companyId,
       meetingId: meeting.id,
@@ -118,7 +131,7 @@ export class CalendarService {
     await this.prisma.meeting.delete({ where: { id } });
 
     if (existing.googleEventId) {
-      await this.outboundQueue.add('delete', {
+      await this.safeEnqueueOutbound('delete', {
         action: 'delete',
         companyId,
         meetingId: id,
@@ -131,7 +144,7 @@ export class CalendarService {
   }
 
   private async enqueueOutboundUpdate(companyId: string, meetingId: string, organizerId: string) {
-    await this.outboundQueue.add('update', { action: 'update', companyId, meetingId, organizerId });
+    await this.safeEnqueueOutbound('update', { action: 'update', companyId, meetingId, organizerId });
   }
 
   /** endAt бояд ҳатман баъд аз startAt бошад, вагарна дучанд-омори мантиқан нодуруст сохта мешавад. */

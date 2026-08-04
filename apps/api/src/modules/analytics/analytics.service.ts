@@ -270,7 +270,9 @@ export class AnalyticsService {
       const response = await gemini.models.generateContent({
         model: 'gemini-flash-latest',
         contents: `Write ONE short natural-language sentence summarizing this sales forecast: estimated next-30-days revenue is ${estimatedRevenue}, confidence ${confidencePercentage}%. No markdown.`,
-        config: { maxOutputTokens: 128 },
+        // gemini-flash-latest spends ~800 tokens on internal "thinking" before the visible answer, so a low
+        // budget here truncates the response to nothing usable — keep this generous (see ai-summary.processor.ts).
+        config: { maxOutputTokens: 1024 },
       });
       return (response.text ?? '').trim() || fallback;
     } catch {

@@ -21,11 +21,15 @@ export class InvoiceOverdueProcessor extends WorkerHost implements OnModuleInit 
   }
 
   async onModuleInit() {
-    await this.queue.add(
-      OVERDUE_CHECK_JOB,
-      {},
-      { repeat: { pattern: OVERDUE_CRON }, jobId: OVERDUE_REPEAT_JOB_ID },
-    );
+    try {
+      await this.queue.add(
+        OVERDUE_CHECK_JOB,
+        {},
+        { repeat: { pattern: OVERDUE_CRON }, jobId: OVERDUE_REPEAT_JOB_ID },
+      );
+    } catch (error) {
+      this.logger.error(`Сабти repeatable job-и invoice-overdue-check ноком шуд: ${error}`);
+    }
   }
 
   async process(_job: Job) {

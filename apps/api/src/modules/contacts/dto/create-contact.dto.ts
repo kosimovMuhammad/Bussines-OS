@@ -1,5 +1,7 @@
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsArray, IsEmail, IsOptional, IsString, IsUUID, Matches, MinLength } from 'class-validator';
+import { normalizePhone } from '../../../common/utils/phone.util';
 
 const E164_REGEX = /^\+[1-9]\d{6,14}$/;
 
@@ -21,6 +23,7 @@ export class CreateContactDto {
 
   @ApiPropertyOptional({ description: 'Phone number in E.164 format', example: '+992901234567' })
   @IsOptional()
+  @Transform(({ value }) => normalizePhone(value))
   @Matches(E164_REGEX, { message: 'phone бояд дар формати E.164 бошад (масалан +992901234567)' })
   phone?: string;
 

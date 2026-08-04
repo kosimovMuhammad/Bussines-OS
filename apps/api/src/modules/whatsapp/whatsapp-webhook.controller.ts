@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Logger, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Throttle } from '@nestjs/throttler';
@@ -13,6 +13,8 @@ import { extractIncomingMessages } from './whatsapp-webhook.util';
 @Throttle({ default: { limit: 20, ttl: 60_000 } })
 @Controller('webhooks/whatsapp')
 export class WhatsappWebhookController {
+  private readonly logger = new Logger(WhatsappWebhookController.name);
+
   constructor(
     private readonly config: ConfigService,
     @InjectQueue(QUEUES.WHATSAPP_INCOMING) private readonly queue: Queue,
@@ -44,7 +46,14 @@ export class WhatsappWebhookController {
   async receive(@Body() payload: Parameters<typeof extractIncomingMessages>[0]) {
     const messages = extractIncomingMessages(payload);
     for (const message of messages) {
-      await this.queue.add('incoming', message);
+      try {
+        await this.queue.add('incoming', message);
+      } catch (error) {
+        // Meta retries (and can eventually disable) a webhook that keeps
+        // erroring, so a broken queue must not surface as a failed delivery -
+        // log and keep acknowledging receipt instead of 500ing.
+        this.logger.error(`Сафи паёмҳои воридотӣ дастнорас аст: ${error}`);
+      }
     }
     return { received: true };
   }
