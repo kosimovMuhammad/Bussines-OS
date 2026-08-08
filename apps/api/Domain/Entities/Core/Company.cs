@@ -13,6 +13,7 @@ public class Company
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<User> Users { get; set; } = new List<User>();
+    public ICollection<RbacRole> Roles { get; set; } = new List<RbacRole>();
     public ICollection<Contact> Contacts { get; set; } = new List<Contact>();
     public ICollection<Deal> Deals { get; set; } = new List<Deal>();
     public ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
@@ -29,4 +30,6 @@ public class Company
     public ICollection<CalendarSyncToken> CalendarSyncTokens { get; set; } = new List<CalendarSyncToken>();
     public ICollection<TimeEntry> TimeEntries { get; set; } = new List<TimeEntry>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
+    public ICollection<ActivityLog> ActivityLogs { get; set; } = new List<ActivityLog>();
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

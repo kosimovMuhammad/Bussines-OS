@@ -41,7 +41,8 @@ public class InvoicingService(IAppDbContext db) : IInvoicingService
             invoice.Id, invoice.CompanyId, invoice.DealId, invoice.ContactId,
             $"{invoice.Contact.FirstName} {invoice.Contact.LastName}".Trim(), invoice.InvoiceNumber, invoice.Amount,
             invoice.Currency, invoice.Status.ToString(), invoice.IssueDate, invoice.DueDate, invoice.Notes,
-            invoice.CreatedAt, invoice.UpdatedAt, invoice.Payments.Select(ToPaymentDto).ToList());
+            invoice.CreatedAt, invoice.UpdatedAt, invoice.Payments.Select(ToPaymentDto).ToList(),
+            new InvoiceContactSummaryDto(invoice.Contact.Id, invoice.Contact.FirstName, invoice.Contact.LastName));
     }
 
     public async Task<InvoiceDto> CreateAsync(string companyId, CreateInvoiceRequest request, CancellationToken cancellationToken = default)

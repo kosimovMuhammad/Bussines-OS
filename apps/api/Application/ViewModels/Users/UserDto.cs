@@ -9,4 +9,5 @@ public record UserDto(
     string? AvatarUrl,
     string Status,
     DateTime? LastLoginAt,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool HasPassword);

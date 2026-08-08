@@ -2,7 +2,7 @@ using BusinessOS.Domain.Interfaces;
 
 namespace BusinessOS.Domain.Entities;
 
-public class Contact : ITenantScoped
+public class Contact : IActivityLoggable, IArchivable
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string CompanyId { get; set; } = string.Empty;
@@ -17,6 +17,7 @@ public class Contact : ITenantScoped
     public string? OwnerId { get; set; }
     public User? Owner { get; set; }
     public List<string> Tags { get; set; } = new();
+    public bool IsArchived { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

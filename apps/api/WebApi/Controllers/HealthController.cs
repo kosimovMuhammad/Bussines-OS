@@ -11,6 +11,7 @@ namespace BusinessOS.WebApi.Controllers;
 public class HealthController(DataContext db) : ControllerBase
 {
     [HttpGet]
+    [HttpPost]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
         await db.Database.ExecuteSqlRawAsync("SELECT 1", ct);

@@ -18,7 +18,8 @@ public class FilesController(
     IFilesService filesService,
     ICurrentUserContext currentUser,
     IValidator<PresignUploadRequest> presignValidator,
-    IValidator<ConfirmFileRequest> confirmValidator) : ControllerBase
+    IValidator<ConfirmFileRequest> confirmValidator,
+    IValidator<RestoreFileVersionRequest> restoreVersionValidator) : ControllerBase
 {
     [HttpPost("presign")]
     public async Task<IActionResult> Presign(PresignUploadRequest request, CancellationToken ct)
@@ -43,5 +44,17 @@ public class FilesController(
     {
         await filesService.RemoveAsync(currentUser.CompanyId!, id, ct);
         return NoContent();
+    }
+
+    [HttpGet("{id}/versions")]
+    public async Task<IActionResult> ListVersions(string id, CancellationToken ct) =>
+        Ok(await filesService.ListVersionsAsync(currentUser.CompanyId!, id, ct));
+
+    [HttpPost("{id}/restore-version")]
+    [RequireAction(PermissionAction.Update)]
+    public async Task<IActionResult> RestoreVersion(string id, RestoreFileVersionRequest request, CancellationToken ct)
+    {
+        await restoreVersionValidator.ValidateAndThrowAppAsync(request, ct);
+        return Ok(await filesService.RestoreVersionAsync(currentUser.CompanyId!, id, request.VersionId, currentUser.UserId!, ct));
     }
 }

@@ -5,4 +5,5 @@ public enum UserStatus
     Active,
     Invited,
     Suspended,
+    PendingVerification,
 }

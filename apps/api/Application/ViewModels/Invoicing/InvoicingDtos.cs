@@ -31,6 +31,8 @@ public record InvoiceDto(
 
 public record PaymentDto(string Id, string InvoiceId, decimal Amount, string Method, DateTime PaidAt, string? Notes);
 
+public record InvoiceContactSummaryDto(string Id, string FirstName, string? LastName);
+
 public record InvoiceDetailDto(
     string Id,
     string CompanyId,
@@ -46,7 +48,8 @@ public record InvoiceDetailDto(
     string? Notes,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    IReadOnlyList<PaymentDto> Payments)
+    IReadOnlyList<PaymentDto> Payments,
+    InvoiceContactSummaryDto Contact)
     : InvoiceDto(Id, CompanyId, DealId, ContactId, ContactName, InvoiceNumber, Amount, Currency, Status, IssueDate, DueDate, Notes, CreatedAt, UpdatedAt);
 
 public class CreateInvoiceRequestValidator : AbstractValidator<CreateInvoiceRequest>

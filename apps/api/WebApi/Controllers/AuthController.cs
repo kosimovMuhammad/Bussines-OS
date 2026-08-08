@@ -1,6 +1,8 @@
 using BusinessOS.Application.Abstraction;
+using BusinessOS.Application.Constants;
 using BusinessOS.Application.Services;
 using BusinessOS.Application.ViewModels.Auth;
+using BusinessOS.WebApi.Authorization;
 using BusinessOS.WebApi.Extensions;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +18,10 @@ public class AuthController(
     ICurrentUserContext currentUser,
     IValidator<RegisterRequest> registerValidator,
     IValidator<LoginRequest> loginValidator,
-    IValidator<AcceptInviteRequest> acceptInviteValidator,
+    IValidator<LoginWithCodeRequest> loginWithCodeValidator,
+    IValidator<VerifyEmailRequest> verifyEmailValidator,
+    IValidator<ResendVerificationRequest> resendVerificationValidator,
+    IValidator<ResendInviteCodeRequest> resendInviteCodeValidator,
     IWebHostEnvironment env,
     IConfiguration configuration) : ControllerBase
 {
@@ -40,9 +45,29 @@ public class AuthController(
     public async Task<IActionResult> Register(RegisterRequest request, CancellationToken ct)
     {
         await registerValidator.ValidateAndThrowAppAsync(request, ct);
-        var tokens = await authService.RegisterAsync(request, ct);
+        var pending = await authService.RegisterAsync(request, GetClientIp(), GetUserAgent(), ct);
+        return Ok(pending);
+    }
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request, CancellationToken ct)
+    {
+        await verifyEmailValidator.ValidateAndThrowAppAsync(request, ct);
+        var tokens = await authService.VerifyEmailAsync(request, GetClientIp(), GetUserAgent(), ct);
         SetRefreshCookie(tokens.RefreshToken);
         return Ok(new { accessToken = tokens.AccessToken, user = tokens.User });
+    }
+
+    [HttpPost("resend-verification")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResendVerification(ResendVerificationRequest request, CancellationToken ct)
+    {
+        await resendVerificationValidator.ValidateAndThrowAppAsync(request, ct);
+        var pending = await authService.ResendVerificationAsync(request, ct);
+        return Ok(pending);
     }
 
     [HttpPost("login")]
@@ -51,19 +76,30 @@ public class AuthController(
     public async Task<IActionResult> Login(LoginRequest request, CancellationToken ct)
     {
         await loginValidator.ValidateAndThrowAppAsync(request, ct);
-        var tokens = await authService.LoginAsync(request, ct);
+        var tokens = await authService.LoginAsync(request, GetClientIp(), GetUserAgent(), ct);
         SetRefreshCookie(tokens.RefreshToken);
         return Ok(new { accessToken = tokens.AccessToken, user = tokens.User });
     }
 
-    [HttpPost("accept-invite")]
+    [HttpPost("login-code")]
     [AllowAnonymous]
-    public async Task<IActionResult> AcceptInvite(AcceptInviteRequest request, CancellationToken ct)
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> LoginWithCode(LoginWithCodeRequest request, CancellationToken ct)
     {
-        await acceptInviteValidator.ValidateAndThrowAppAsync(request, ct);
-        var tokens = await authService.AcceptInviteAsync(request, ct);
+        await loginWithCodeValidator.ValidateAndThrowAppAsync(request, ct);
+        var tokens = await authService.LoginWithCodeAsync(request, GetClientIp(), GetUserAgent(), ct);
         SetRefreshCookie(tokens.RefreshToken);
         return Ok(new { accessToken = tokens.AccessToken, user = tokens.User });
+    }
+
+    [HttpPost("resend-invite-code")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResendInviteCode(ResendInviteCodeRequest request, CancellationToken ct)
+    {
+        await resendInviteCodeValidator.ValidateAndThrowAppAsync(request, ct);
+        var pending = await authService.ResendInviteCodeAsync(request, ct);
+        return Ok(pending);
     }
 
     [HttpPost("refresh")]
@@ -76,7 +112,7 @@ public class AuthController(
             return Unauthorized(new { statusCode = 401, message = "No refresh token", error = "Unauthorized" });
         }
 
-        var tokens = await authService.RefreshAsync(rawToken, ct);
+        var tokens = await authService.RefreshAsync(rawToken, GetClientIp(), GetUserAgent(), ct);
         SetRefreshCookie(tokens.RefreshToken);
         return Ok(new { accessToken = tokens.AccessToken, user = tokens.User });
     }
@@ -95,13 +131,27 @@ public class AuthController(
         return Ok(new { success = true });
     }
 
+    // RequireAction(Read) override: logging out of every session must be available to every
+    // authenticated role, not just the roles the (currently coarse, all-or-nothing) RolePermissions
+    // matrix grants Create/Update/Delete to on the Profile module. Same pattern as
+    // PlansController/ReportsController's platform-admin-gated mutations.
     [HttpPost("logout-all")]
     [Authorize]
+    [RequireModule(ModuleName.Profile)]
+    [RequireAction(PermissionAction.Read)]
     public async Task<IActionResult> LogoutAll(CancellationToken ct)
     {
-        await authService.LogoutAllAsync(currentUser.UserId!, ct);
+        await authService.LogoutAllAsync(currentUser.CompanyId!, currentUser.UserId!, ct);
         ClearRefreshCookie();
         return Ok(new { success = true });
+    }
+
+    private string? GetClientIp() => HttpContext.Connection.RemoteIpAddress?.ToString();
+
+    private string? GetUserAgent()
+    {
+        var value = Request.Headers.UserAgent.ToString();
+        return string.IsNullOrEmpty(value) ? null : value;
     }
 
     private void SetRefreshCookie(string token) => Response.Cookies.Append(RefreshCookieName, token, new CookieOptions

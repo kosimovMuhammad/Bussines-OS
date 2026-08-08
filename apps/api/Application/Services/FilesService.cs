@@ -14,7 +14,16 @@ public class FilesService(IAppDbContext db, IFileStorageService storage) : IFile
         await ValidateRelationsAsync(request.ContactId, request.DealId, request.InvoiceId, cancellationToken);
 
         var key = storage.BuildKey(companyId, request.Filename);
-        var url = storage.GetPresignedUploadUrl(key, request.MimeType);
+        string url;
+        try
+        {
+            url = storage.GetPresignedUploadUrl(key, request.MimeType);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExternalServiceException($"File storage is not available: {ex.Message}");
+        }
+
         return new PresignUploadResponse(url, key);
     }
 
@@ -36,6 +45,24 @@ public class FilesService(IAppDbContext db, IFileStorageService storage) : IFile
         };
 
         db.FileAssets.Add(file);
+
+        // Seeds version 1 at upload time - there's no "upload a new version of an existing
+        // file" endpoint yet (out of scope for this phase; would need a small addition to
+        // ConfirmFileRequest to accept an existing fileId), so this is the only place a
+        // FileVersion row is created today. GET .../versions and .../restore-version are
+        // still meaningful without that: every file has at least this one snapshot.
+        db.FileVersions.Add(new FileVersion
+        {
+            CompanyId = companyId,
+            FileAsset = file,
+            VersionNumber = 1,
+            S3Key = file.S3Key,
+            Filename = file.Filename,
+            MimeType = file.MimeType,
+            SizeBytes = file.SizeBytes,
+            UploadedById = uploadedById,
+        });
+
         await db.SaveChangesAsync(cancellationToken);
 
         file.UploadedBy = await db.Users.SingleAsync(u => u.Id == uploadedById, cancellationToken);
@@ -64,10 +91,68 @@ public class FilesService(IAppDbContext db, IFileStorageService storage) : IFile
         var file = await db.FileAssets.SingleOrDefaultAsync(f => f.Id == id, cancellationToken)
             ?? throw new NotFoundException("File not found");
 
-        await storage.DeleteAsync(file.S3Key, cancellationToken);
+        try
+        {
+            await storage.DeleteAsync(file.S3Key, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExternalServiceException($"File storage is not available: {ex.Message}");
+        }
 
         db.FileAssets.Remove(file);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FileVersionDto>> ListVersionsAsync(string companyId, string fileId, CancellationToken cancellationToken = default)
+    {
+        var exists = await db.FileAssets.AnyAsync(f => f.Id == fileId, cancellationToken);
+        if (!exists)
+        {
+            throw new NotFoundException("File not found");
+        }
+
+        var versions = await db.FileVersions.Include(v => v.UploadedBy)
+            .Where(v => v.FileAssetId == fileId)
+            .OrderByDescending(v => v.VersionNumber)
+            .ToListAsync(cancellationToken);
+
+        return versions.Select(v => new FileVersionDto(v.Id, v.VersionNumber, v.Filename, v.MimeType, v.SizeBytes, v.UploadedById, v.UploadedBy.Name, v.CreatedAt)).ToList();
+    }
+
+    // Rewrites the FileAsset's pointer columns to the target version's values, after first
+    // snapshotting the CURRENT state as a new version - so "restoring" never loses data,
+    // it just adds another entry to the history and makes an older one current again. Pure
+    // metadata: never calls IFileStorageService (see FileVersion.cs).
+    public async Task<FileAssetDto> RestoreVersionAsync(string companyId, string fileId, string versionId, string actorUserId, CancellationToken cancellationToken = default)
+    {
+        var file = await db.FileAssets.Include(f => f.UploadedBy).SingleOrDefaultAsync(f => f.Id == fileId, cancellationToken)
+            ?? throw new NotFoundException("File not found");
+
+        var target = await db.FileVersions.SingleOrDefaultAsync(v => v.Id == versionId && v.FileAssetId == fileId, cancellationToken)
+            ?? throw new NotFoundException("File version not found");
+
+        var latestVersionNumber = await db.FileVersions.Where(v => v.FileAssetId == fileId).MaxAsync(v => v.VersionNumber, cancellationToken);
+
+        db.FileVersions.Add(new FileVersion
+        {
+            CompanyId = companyId,
+            FileAssetId = fileId,
+            VersionNumber = latestVersionNumber + 1,
+            S3Key = file.S3Key,
+            Filename = file.Filename,
+            MimeType = file.MimeType,
+            SizeBytes = file.SizeBytes,
+            UploadedById = actorUserId,
+        });
+
+        file.S3Key = target.S3Key;
+        file.Filename = target.Filename;
+        file.MimeType = target.MimeType;
+        file.SizeBytes = target.SizeBytes;
+
+        await db.SaveChangesAsync(cancellationToken);
+        return ToDto(file);
     }
 
     private async Task ValidateRelationsAsync(string? contactId, string? dealId, string? invoiceId, CancellationToken cancellationToken)

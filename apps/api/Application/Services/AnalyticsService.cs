@@ -37,7 +37,15 @@ public class AnalyticsService(IAppDbContext db, IGeminiClient gemini) : IAnalyti
         return new SalesAnalyticsDto(pipelineByStage, winRate);
     }
 
-    public async Task<IReadOnlyList<RevenuePointDto>> GetRevenueAsync(string companyId, CancellationToken cancellationToken = default)
+    public async Task<RevenueAnalyticsDto> GetRevenueAsync(string companyId, CancellationToken cancellationToken = default)
+    {
+        var revenueByMonth = await GetRevenueByMonthAsync(companyId, cancellationToken);
+        var totalWonValue = revenueByMonth.Sum(p => p.Revenue);
+
+        return new RevenueAnalyticsDto(totalWonValue, revenueByMonth);
+    }
+
+    private async Task<IReadOnlyList<RevenuePointDto>> GetRevenueByMonthAsync(string companyId, CancellationToken cancellationToken = default)
     {
         var cutoff = DateTime.UtcNow.AddMonths(-12);
         var deals = await db.Deals.Where(d => d.Stage == DealStage.Won && d.UpdatedAt >= cutoff).ToListAsync(cancellationToken);
@@ -68,15 +76,15 @@ public class AnalyticsService(IAppDbContext db, IGeminiClient gemini) : IAnalyti
     public async Task<IReadOnlyList<ActivityFeedItemDto>> GetActivityFeedAsync(string companyId, CancellationToken cancellationToken = default)
     {
         var communications = await db.Communications.OrderByDescending(c => c.Timestamp).Take(20)
-            .Select(c => new ActivityFeedItemDto("communication", c.Id, c.Content, c.Timestamp))
+            .Select(c => new ActivityFeedItemDto("communication", c.Timestamp, new ActivityFeedItemDataDto(c.Id, c.Content)))
             .ToListAsync(cancellationToken);
 
         var deals = await db.Deals.OrderByDescending(d => d.UpdatedAt).Take(20)
-            .Select(d => new ActivityFeedItemDto("deal", d.Id, d.Title, d.UpdatedAt))
+            .Select(d => new ActivityFeedItemDto("deal", d.UpdatedAt, new ActivityFeedItemDataDto(d.Id, d.Title)))
             .ToListAsync(cancellationToken);
 
         var tasks = await db.Tasks.OrderByDescending(t => t.UpdatedAt).Take(20)
-            .Select(t => new ActivityFeedItemDto("task", t.Id, t.Title, t.UpdatedAt))
+            .Select(t => new ActivityFeedItemDto("task", t.UpdatedAt, new ActivityFeedItemDataDto(t.Id, t.Title)))
             .ToListAsync(cancellationToken);
 
         return communications.Concat(deals).Concat(tasks)
@@ -100,7 +108,7 @@ public class AnalyticsService(IAppDbContext db, IGeminiClient gemini) : IAnalyti
             .Where(p => p.PaidAt >= monthStart)
             .SumAsync(p => p.Amount, cancellationToken);
 
-        var revenueByMonth = await GetRevenueAsync(companyId, cancellationToken);
+        var revenueByMonth = await GetRevenueByMonthAsync(companyId, cancellationToken);
 
         return new FinanceAnalyticsDto(outstanding, overdue, paidThisMonth, revenueByMonth);
     }
@@ -137,6 +145,7 @@ public class AnalyticsService(IAppDbContext db, IGeminiClient gemini) : IAnalyti
             .SumAsync(i => i.Amount, cancellationToken);
 
         var forecast = weightedDeals + outstandingInvoices;
+        var confidencePercentage = openDeals.Count == 0 ? 0m : Math.Round(openDeals.Average(d => (decimal)d.Probability), 1);
 
         string summary;
         try
@@ -151,6 +160,6 @@ public class AnalyticsService(IAppDbContext db, IGeminiClient gemini) : IAnalyti
             summary = $"Weighted 30-day forecast: {forecast:0.##} based on {openDeals.Count} open deals and outstanding invoices.";
         }
 
-        return new ForecastDto(forecast, summary);
+        return new ForecastDto(forecast, confidencePercentage, summary);
     }
 }

@@ -9,6 +9,8 @@ public record UpdateCompanyRequest(string? Name, string? Industry, string? Timez
 
 public record UpdatePlanRequest(Plan Plan);
 
+public record TransferOwnershipRequest(string NewOwnerUserId, string CurrentPassword);
+
 public record IntegrationStatus(bool Connected, bool ComingSoon);
 
 public record IntegrationsStatusDto(
@@ -32,5 +34,14 @@ public class UpdatePlanRequestValidator : AbstractValidator<UpdatePlanRequest>
     public UpdatePlanRequestValidator()
     {
         RuleFor(x => x.Plan).IsInEnum();
+    }
+}
+
+public class TransferOwnershipRequestValidator : AbstractValidator<TransferOwnershipRequest>
+{
+    public TransferOwnershipRequestValidator()
+    {
+        RuleFor(x => x.NewOwnerUserId).NotEmpty();
+        RuleFor(x => x.CurrentPassword).NotEmpty();
     }
 }

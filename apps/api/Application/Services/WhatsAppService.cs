@@ -1,3 +1,4 @@
+using System.Data.Common;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
 using BusinessOS.Application.ViewModels.WhatsApp;
@@ -30,7 +31,17 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
         account.EncryptedAccessToken = tokenCipher.Encrypt(request.AccessToken);
         account.VerifiedName = request.VerifiedName;
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is DbException { SqlState: "23505" })
+        {
+            // phoneNumberId is unique across all companies - a Meta phone_number_id can only
+            // ever belong to one WhatsApp Business account, so this is a real conflict, not a bug.
+            throw new ConflictException("This WhatsApp phone number is already connected to another account.");
+        }
+
         return ToDto(account);
     }
 
@@ -64,12 +75,12 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
             await client.SendTextMessageAsync(account.PhoneNumberId, accessToken, contact.Phone, request.Message, cancellationToken);
             communication.Status = CommunicationStatus.Sent;
         }
-        catch
+        catch (Exception ex)
         {
             communication.Status = CommunicationStatus.Failed;
             db.Communications.Add(communication);
             await db.SaveChangesAsync(cancellationToken);
-            throw;
+            throw new ExternalServiceException($"Failed to send WhatsApp message: {ex.Message}");
         }
 
         db.Communications.Add(communication);

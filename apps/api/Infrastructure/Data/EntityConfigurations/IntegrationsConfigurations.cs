@@ -59,3 +59,42 @@ public class CalendarSyncTokenConfiguration : IEntityTypeConfiguration<CalendarS
         builder.HasIndex(t => t.CompanyId);
     }
 }
+
+public class WebhookConfiguration : IEntityTypeConfiguration<Webhook>
+{
+    public void Configure(EntityTypeBuilder<Webhook> builder)
+    {
+        builder.ToTable("webhooks");
+
+        builder.HasOne(w => w.Company)
+            .WithMany()
+            .HasForeignKey(w => w.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(w => w.CompanyId);
+    }
+}
+
+public class WebhookDeliveryLogConfiguration : IEntityTypeConfiguration<WebhookDeliveryLog>
+{
+    public void Configure(EntityTypeBuilder<WebhookDeliveryLog> builder)
+    {
+        builder.ToTable("webhook_delivery_logs");
+
+        builder.HasOne(l => l.Company)
+            .WithMany()
+            .HasForeignKey(l => l.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // SetNull, not Cascade - a delivery log is the audit trail; deleting the Webhook
+        // that produced it must not delete the history of what it sent (same reasoning as
+        // PaymentTransaction->SubscriptionInvoice).
+        builder.HasOne(l => l.Webhook)
+            .WithMany()
+            .HasForeignKey(l => l.WebhookId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(l => new { l.CompanyId, l.CreatedAt });
+        builder.HasIndex(l => l.WebhookId);
+    }
+}

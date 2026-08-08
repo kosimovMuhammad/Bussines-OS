@@ -3,7 +3,7 @@ using BusinessOS.Domain.Enums;
 
 namespace BusinessOS.Domain.Entities;
 
-public class TaskItem : ITenantScoped
+public class TaskItem : IActivityLoggable, IArchivable
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string CompanyId { get; set; } = string.Empty;
@@ -19,6 +19,7 @@ public class TaskItem : ITenantScoped
     public Deal? Deal { get; set; }
     public string? ContactId { get; set; }
     public Contact? Contact { get; set; }
+    public bool IsArchived { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -22,6 +22,7 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 
         builder.Property(a => a.MetadataJson).HasColumnName("metadata").HasColumnType("jsonb");
 
-        builder.HasIndex(a => a.CompanyId);
+        builder.HasIndex(a => new { a.CompanyId, a.CreatedAt });
+        builder.HasIndex(a => a.UserId);
     }
 }

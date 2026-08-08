@@ -8,5 +8,8 @@ public class RefreshToken
     public string TokenHash { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public bool Revoked { get; set; }
+    public string? IpAddress { get; set; }
+    public string? UserAgent { get; set; }
+    public string? DeviceInfo { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

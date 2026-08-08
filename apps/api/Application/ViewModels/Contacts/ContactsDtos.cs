@@ -24,7 +24,7 @@ public record UpdateContactRequest(
     string? OwnerId,
     List<string>? Tags);
 
-public record QueryContactsRequest(string? Search, string? Tag, string? OwnerId, int Page = 1, int Limit = 20);
+public record QueryContactsRequest(string? Search, string? Tag, string? OwnerId, bool IncludeArchived = false, int Page = 1, int Limit = 20);
 
 public record ContactDto(
     string Id,
@@ -40,7 +40,10 @@ public record ContactDto(
     string? OwnerName,
     IReadOnlyList<string> Tags,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    bool IsArchived = false);
+
+public record BulkUpdateContactsRequest(List<string> Ids, UpdateContactRequest Patch);
 
 public record ContactDealSummary(string Id, string Title, string Stage, decimal Value, string Currency);
 
@@ -72,8 +75,9 @@ public record ContactDetailDto(
     DateTime UpdatedAt,
     IReadOnlyList<ContactDealSummary> Deals,
     IReadOnlyList<ContactTaskSummary> Tasks,
-    IReadOnlyList<ContactCommunicationSummary> Communications)
-    : ContactDto(Id, CompanyId, FirstName, LastName, Email, Phone, Position, CompanyName, Notes, OwnerId, OwnerName, Tags, CreatedAt, UpdatedAt);
+    IReadOnlyList<ContactCommunicationSummary> Communications,
+    bool IsArchived = false)
+    : ContactDto(Id, CompanyId, FirstName, LastName, Email, Phone, Position, CompanyName, Notes, OwnerId, OwnerName, Tags, CreatedAt, UpdatedAt, IsArchived);
 
 public static class PhoneUtil
 {
@@ -110,5 +114,14 @@ public class UpdateContactRequestValidator : AbstractValidator<UpdateContactRequ
         RuleFor(x => x.FirstName).NotEmpty().When(x => x.FirstName is not null);
         RuleFor(x => x.Email).EmailAddress().When(x => x.Email is not null);
         RuleFor(x => x.Phone).Must(PhoneUtil.IsValid).WithMessage("Phone must be in E.164 format").When(x => x.Phone is not null);
+    }
+}
+
+public class BulkUpdateContactsRequestValidator : AbstractValidator<BulkUpdateContactsRequest>
+{
+    public BulkUpdateContactsRequestValidator()
+    {
+        RuleFor(x => x.Ids).NotEmpty().Must(ids => ids.Count <= 200).WithMessage("A bulk operation is limited to 200 ids at a time");
+        RuleFor(x => x.Patch).SetValidator(new UpdateContactRequestValidator());
     }
 }

@@ -70,6 +70,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SupportNonNullableReferenceTypes();
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "BusinessOS API", Version = "v1" });
     options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
     {

@@ -23,6 +23,55 @@ namespace BusinessOS.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.ActivityLog", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ChangesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("entityId");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("entityType");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CompanyId", "CreatedAt");
+
+                    b.HasIndex("CompanyId", "EntityType", "EntityId", "CreatedAt");
+
+                    b.ToTable("activity_logs", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.AiEmailDraft", b =>
                 {
                     b.Property<string>("Id")
@@ -224,6 +273,68 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("ai_summaries", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.ApiKey", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("createdByUserId");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expiresAt");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("keyHash");
+
+                    b.Property<string>("KeyPrefix")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("keyPrefix");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lastUsedAt");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique();
+
+                    b.ToTable("api_keys", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.AuditLog", b =>
                 {
                     b.Property<string>("Id")
@@ -244,18 +355,26 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("createdAt");
 
-                    b.Property<string>("Entity")
-                        .IsRequired()
+                    b.Property<string>("IpAddress")
                         .HasColumnType("text")
-                        .HasColumnName("entity");
-
-                    b.Property<string>("EntityId")
-                        .HasColumnType("text")
-                        .HasColumnName("entityId");
+                        .HasColumnName("ipAddress");
 
                     b.Property<string>("MetadataJson")
                         .HasColumnType("jsonb")
                         .HasColumnName("metadata");
+
+                    b.Property<string>("TargetId")
+                        .HasColumnType("text")
+                        .HasColumnName("targetId");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("targetType");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text")
+                        .HasColumnName("userAgent");
 
                     b.Property<string>("UserId")
                         .HasColumnType("text")
@@ -263,11 +382,67 @@ namespace BusinessOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CompanyId");
-
                     b.HasIndex("UserId");
 
+                    b.HasIndex("CompanyId", "CreatedAt");
+
                     b.ToTable("audit_logs", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Branch", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("text")
+                        .HasColumnName("address");
+
+                    b.Property<string>("City")
+                        .HasColumnType("text")
+                        .HasColumnName("city");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("text")
+                        .HasColumnName("country");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<bool>("IsHeadquarters")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isHeadquarters");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Timezone")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("timezone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CompanyId", "IsHeadquarters")
+                        .IsUnique()
+                        .HasFilter("\"isHeadquarters\" = true");
+
+                    b.ToTable("branches", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.CalendarSyncToken", b =>
@@ -328,6 +503,51 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("calendar_sync_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Category", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ParentCategoryId")
+                        .HasColumnType("text")
+                        .HasColumnName("parentCategoryId");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ParentCategoryId");
+
+                    b.ToTable("categories", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Communication", b =>
@@ -425,6 +645,76 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("companies", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.CompanySettings", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("locale");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("logoUrl");
+
+                    b.Property<int>("PasswordMinLength")
+                        .HasColumnType("integer")
+                        .HasColumnName("passwordMinLength");
+
+                    b.Property<bool>("PasswordRequireNumber")
+                        .HasColumnType("boolean")
+                        .HasColumnName("passwordRequireNumber");
+
+                    b.Property<bool>("PasswordRequireSymbol")
+                        .HasColumnType("boolean")
+                        .HasColumnName("passwordRequireSymbol");
+
+                    b.Property<bool>("PasswordRequireUppercase")
+                        .HasColumnType("boolean")
+                        .HasColumnName("passwordRequireUppercase");
+
+                    b.Property<string>("PrimaryColor")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("primaryColor");
+
+                    b.Property<bool>("RequireTwoFactor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("requireTwoFactor");
+
+                    b.Property<int>("SessionTimeoutMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("sessionTimeoutMinutes");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId")
+                        .IsUnique();
+
+                    b.ToTable("company_settings", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Contact", b =>
                 {
                     b.Property<string>("Id")
@@ -452,6 +742,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("firstName");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
 
                     b.Property<string>("LastName")
                         .HasColumnType("text")
@@ -495,6 +789,97 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("contacts", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Contract", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("ContactId")
+                        .HasColumnType("text")
+                        .HasColumnName("contactId");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<string>("CounterpartyName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("counterpartyName");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("DealId")
+                        .HasColumnType("text")
+                        .HasColumnName("dealId");
+
+                    b.Property<DateTime?>("EffectiveDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effectiveDate");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expiryDate");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
+                    b.Property<DateTime?>("SignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("signedAt");
+
+                    b.Property<string>("SignedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("signedByUserId");
+
+                    b.Property<string>("SignedIpAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("signedIpAddress");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TemplateId")
+                        .HasColumnType("text")
+                        .HasColumnName("templateId");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("DealId");
+
+                    b.HasIndex("SignedByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TemplateId");
+
+                    b.ToTable("contracts", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Deal", b =>
                 {
                     b.Property<string>("Id")
@@ -523,6 +908,10 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Property<DateTime?>("ExpectedCloseDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expectedCloseDate");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
 
                     b.Property<string>("OwnerId")
                         .HasColumnType("text")
@@ -560,6 +949,135 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.HasIndex("Stage");
 
                     b.ToTable("deals", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Department", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("ManagerId")
+                        .HasColumnType("text")
+                        .HasColumnName("managerId");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ParentDepartmentId")
+                        .HasColumnType("text")
+                        .HasColumnName("parentDepartmentId");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ManagerId");
+
+                    b.HasIndex("ParentDepartmentId");
+
+                    b.HasIndex("CompanyId", "Name")
+                        .IsUnique()
+                        .HasFilter("\"parentDepartmentId\" IS NULL");
+
+                    b.HasIndex("CompanyId", "ParentDepartmentId", "Name")
+                        .IsUnique()
+                        .HasFilter("\"parentDepartmentId\" IS NOT NULL");
+
+                    b.ToTable("departments", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Expense", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("BranchId")
+                        .HasColumnType("text")
+                        .HasColumnName("branchId");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("category");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
+                    b.Property<string>("PaidById")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("paidById");
+
+                    b.Property<string>("ReceiptFileId")
+                        .HasColumnType("text")
+                        .HasColumnName("receiptFileId");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("PaidById");
+
+                    b.HasIndex("ReceiptFileId");
+
+                    b.ToTable("expenses", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.FileAsset", b =>
@@ -626,6 +1144,170 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.HasIndex("UploadedById");
 
                     b.ToTable("file_assets", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.FileVersion", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("FileAssetId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("fileAssetId");
+
+                    b.Property<string>("Filename")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("filename");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("mimeType");
+
+                    b.Property<string>("S3Key")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("s3Key");
+
+                    b.Property<int>("SizeBytes")
+                        .HasColumnType("integer")
+                        .HasColumnName("sizeBytes");
+
+                    b.Property<string>("UploadedById")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("uploadedById");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("versionNumber");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UploadedById");
+
+                    b.HasIndex("FileAssetId", "VersionNumber")
+                        .IsUnique();
+
+                    b.ToTable("file_versions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Inventory", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BranchId")
+                        .HasColumnType("text")
+                        .HasColumnName("branchId");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("productId");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique()
+                        .HasFilter("\"branchId\" IS NULL");
+
+                    b.HasIndex("ProductId", "BranchId")
+                        .IsUnique()
+                        .HasFilter("\"branchId\" IS NOT NULL");
+
+                    b.ToTable("inventories", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_inventories_quantity_non_negative", "\"quantity\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.InventoryMovement", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("integer")
+                        .HasColumnName("direction");
+
+                    b.Property<string>("InventoryId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("inventoryId");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Reference")
+                        .HasColumnType("text")
+                        .HasColumnName("reference");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("InventoryId", "CreatedAt");
+
+                    b.ToTable("inventory_movements", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Invoice", b =>
@@ -700,6 +1382,57 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("invoices", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.LoginHistory", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("DeviceInfo")
+                        .HasColumnType("text")
+                        .HasColumnName("deviceInfo");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text")
+                        .HasColumnName("failureReason");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("ipAddress");
+
+                    b.Property<bool>("IsNewDevice")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isNewDevice");
+
+                    b.Property<DateTime>("LoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("loginAt");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean")
+                        .HasColumnName("success");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text")
+                        .HasColumnName("userAgent");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "LoginAt");
+
+                    b.HasIndex("UserId", "LoginAt");
+
+                    b.ToTable("login_histories", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Meeting", b =>
@@ -802,6 +1535,103 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("meetings", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Notification", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isRead");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("readAt");
+
+                    b.Property<string>("RelatedEntityId")
+                        .HasColumnType("text")
+                        .HasColumnName("relatedEntityId");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasColumnType("text")
+                        .HasColumnName("relatedEntityType");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CompanyId", "UserId", "IsRead", "CreatedAt");
+
+                    b.ToTable("notifications", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.NotificationPreference", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer")
+                        .HasColumnName("channel");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId", "Type", "Channel")
+                        .IsUnique();
+
+                    b.ToTable("notification_preferences", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.OAuthConnection", b =>
                 {
                     b.Property<string>("Id")
@@ -902,6 +1732,313 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("payments", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PaymentTransaction", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completedAt");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderTransactionId")
+                        .HasColumnType("text")
+                        .HasColumnName("providerTransactionId");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SubscriptionInvoiceId")
+                        .HasColumnType("text")
+                        .HasColumnName("subscriptionInvoiceId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderTransactionId")
+                        .IsUnique()
+                        .HasFilter("\"providerTransactionId\" IS NOT NULL");
+
+                    b.HasIndex("SubscriptionInvoiceId");
+
+                    b.HasIndex("CompanyId", "CreatedAt");
+
+                    b.ToTable("payment_transactions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Permission", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("module");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.HasIndex("Module");
+
+                    b.ToTable("permissions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Product", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CategoryId")
+                        .HasColumnType("text")
+                        .HasColumnName("categoryId");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<decimal>("Cost")
+                        .HasColumnType("numeric")
+                        .HasColumnName("cost");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric")
+                        .HasColumnName("price");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("sku");
+
+                    b.Property<int>("Unit")
+                        .HasColumnType("integer")
+                        .HasColumnName("unit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CompanyId", "Sku")
+                        .IsUnique();
+
+                    b.ToTable("products", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PurchaseOrder", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTime?>("ExpectedDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expectedDate");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTime>("OrderDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("orderDate");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("orderNumber");
+
+                    b.Property<DateTime?>("ReceivedDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("receivedDate");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SupplierId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("supplierId");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("CompanyId", "OrderNumber")
+                        .IsUnique();
+
+                    b.ToTable("purchase_orders", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PurchaseOrderLineItem", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("productId");
+
+                    b.Property<string>("PurchaseOrderId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("purchaseOrderId");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasColumnType("numeric")
+                        .HasColumnName("unitCost");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.ToTable("purchase_order_line_items", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.RbacRole", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsSystemRole")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isSystemRole");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("roles", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<string>("Id")
@@ -912,9 +2049,17 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("createdAt");
 
+                    b.Property<string>("DeviceInfo")
+                        .HasColumnType("text")
+                        .HasColumnName("deviceInfo");
+
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expiresAt");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("ipAddress");
 
                     b.Property<bool>("Revoked")
                         .HasColumnType("boolean")
@@ -924,6 +2069,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("tokenHash");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text")
+                        .HasColumnName("userAgent");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -935,6 +2084,349 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("refresh_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Report", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("createdBy");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("entityType");
+
+                    b.Property<string>("FiltersJson")
+                        .HasColumnType("text")
+                        .HasColumnName("filtersJson");
+
+                    b.Property<string>("GroupBy")
+                        .HasColumnType("text")
+                        .HasColumnName("groupBy");
+
+                    b.Property<string>("MetricsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("metricsJson");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.ToTable("reports", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.RolePermission", b =>
+                {
+                    b.Property<string>("RoleId")
+                        .HasColumnType("text")
+                        .HasColumnName("roleId");
+
+                    b.Property<string>("PermissionId")
+                        .HasColumnType("text")
+                        .HasColumnName("permissionId");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("role_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Subscription", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BillingCycle")
+                        .HasColumnType("integer")
+                        .HasColumnName("billingCycle");
+
+                    b.Property<bool>("CancelAtPeriodEnd")
+                        .HasColumnType("boolean")
+                        .HasColumnName("cancelAtPeriodEnd");
+
+                    b.Property<DateTime?>("CanceledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("canceledAt");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<DateTime>("CurrentPeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("currentPeriodEnd");
+
+                    b.Property<DateTime>("CurrentPeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("currentPeriodStart");
+
+                    b.Property<string>("PendingPlanId")
+                        .HasColumnType("text")
+                        .HasColumnName("pendingPlanId");
+
+                    b.Property<string>("PlanId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("planId");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("TrialEndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("trialEndsAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId")
+                        .IsUnique();
+
+                    b.HasIndex("PendingPlanId");
+
+                    b.HasIndex("PlanId");
+
+                    b.ToTable("subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionInvoice", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issuedAt");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paidAt");
+
+                    b.Property<string>("PaymentProviderRef")
+                        .HasColumnType("text")
+                        .HasColumnName("paymentProviderRef");
+
+                    b.Property<DateTime>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("periodEnd");
+
+                    b.Property<DateTime>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("periodStart");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SubscriptionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("subscriptionId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("CompanyId", "IssuedAt");
+
+                    b.ToTable("subscription_invoices", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("PriceMonthly")
+                        .HasColumnType("numeric")
+                        .HasColumnName("priceMonthly");
+
+                    b.Property<decimal>("PriceYearly")
+                        .HasColumnType("numeric")
+                        .HasColumnName("priceYearly");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sortOrder");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("subscription_plans", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionPlanFeature", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<string>("FeatureKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("featureKey");
+
+                    b.Property<int?>("Limit")
+                        .HasColumnType("integer")
+                        .HasColumnName("limit");
+
+                    b.Property<string>("PlanId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("planId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId", "FeatureKey")
+                        .IsUnique();
+
+                    b.ToTable("subscription_plan_features", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Supplier", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("text")
+                        .HasColumnName("address");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("ContactName")
+                        .HasColumnType("text")
+                        .HasColumnName("contactName");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("text")
+                        .HasColumnName("phone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.ToTable("suppliers", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.TaskItem", b =>
@@ -972,6 +2464,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("dueDate");
 
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isArchived");
+
                     b.Property<int>("Priority")
                         .HasColumnType("integer")
                         .HasColumnName("priority");
@@ -1000,6 +2496,127 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.HasIndex("DealId");
 
                     b.ToTable("tasks", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Team", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("DepartmentId")
+                        .HasColumnType("text")
+                        .HasColumnName("departmentId");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("TeamLeadId")
+                        .HasColumnType("text")
+                        .HasColumnName("teamLeadId");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("TeamLeadId");
+
+                    b.ToTable("teams", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.TeamMember", b =>
+                {
+                    b.Property<string>("TeamId")
+                        .HasColumnType("text")
+                        .HasColumnName("teamId");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joinedAt");
+
+                    b.HasKey("TeamId", "UserId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("team_members", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Template", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("Type");
+
+                    b.ToTable("templates", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.TimeEntry", b =>
@@ -1053,6 +2670,50 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("time_entries", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.UsageCounter", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<int>("CurrentValue")
+                        .HasColumnType("integer")
+                        .HasColumnName("currentValue");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("MetricKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("metricKey");
+
+                    b.Property<DateTime?>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("periodEnd");
+
+                    b.Property<DateTime?>("PeriodStart")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("periodStart");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "MetricKey")
+                        .IsUnique();
+
+                    b.ToTable("usage_counters", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.User", b =>
                 {
                     b.Property<string>("Id")
@@ -1063,6 +2724,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("avatarUrl");
 
+                    b.Property<string>("BranchId")
+                        .HasColumnType("text")
+                        .HasColumnName("branchId");
+
                     b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1072,31 +2737,51 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("createdAt");
 
+                    b.Property<string>("DepartmentId")
+                        .HasColumnType("text")
+                        .HasColumnName("departmentId");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("email");
 
-                    b.Property<DateTime?>("InviteTokenExpiresAt")
+                    b.Property<DateTime?>("EmailVerificationCodeExpiresAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("inviteTokenExpiresAt");
+                        .HasColumnName("emailVerificationCodeExpiresAt");
 
-                    b.Property<string>("InviteTokenHash")
+                    b.Property<string>("EmailVerificationCodeHash")
                         .HasColumnType("text")
-                        .HasColumnName("inviteTokenHash");
+                        .HasColumnName("emailVerificationCodeHash");
+
+                    b.Property<bool>("IsPlatformAdmin")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isPlatformAdmin");
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("lastLoginAt");
+
+                    b.Property<string>("ManagerId")
+                        .HasColumnType("text")
+                        .HasColumnName("managerId");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("name");
 
+                    b.Property<string>("OnboardingRole")
+                        .HasColumnType("text")
+                        .HasColumnName("onboardingRole");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text")
                         .HasColumnName("passwordHash");
+
+                    b.Property<string>("RbacRoleId")
+                        .HasColumnType("text")
+                        .HasColumnName("rbacRoleId");
 
                     b.Property<int>("Role")
                         .HasColumnType("integer")
@@ -1112,12 +2797,156 @@ namespace BusinessOS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BranchId");
+
                     b.HasIndex("CompanyId");
+
+                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("ManagerId");
+
+                    b.HasIndex("RbacRoleId");
+
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.UserPermissionOverride", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Allow")
+                        .HasColumnType("boolean")
+                        .HasColumnName("allow");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("PermissionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("permissionId");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.HasIndex("UserId", "PermissionId")
+                        .IsUnique();
+
+                    b.ToTable("user_permission_overrides", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Webhook", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<string>("SecretEncrypted")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("secretEncrypted");
+
+                    b.PrimitiveCollection<List<string>>("SubscribedEvents")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("subscribedEvents");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("url");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.ToTable("webhooks", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WebhookDeliveryLog", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasColumnName("errorMessage");
+
+                    b.Property<string>("Event")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("event");
+
+                    b.Property<int?>("StatusCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("statusCode");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean")
+                        .HasColumnName("success");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("url");
+
+                    b.Property<string>("WebhookId")
+                        .HasColumnType("text")
+                        .HasColumnName("webhookId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WebhookId");
+
+                    b.HasIndex("CompanyId", "CreatedAt");
+
+                    b.ToTable("webhook_delivery_logs", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.WhatsAppAccount", b =>
@@ -1162,6 +2991,301 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("whatsapp_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Workflow", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("createdBy");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("CompanyId", "IsActive");
+
+                    b.ToTable("workflows", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowAction", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConfigJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("config");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("orderIndex");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<string>("WorkflowId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("workflowId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkflowId", "OrderIndex");
+
+                    b.ToTable("workflow_actions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowCondition", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConditionGroupId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("conditionGroupId");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("field");
+
+                    b.Property<int>("Operator")
+                        .HasColumnType("integer")
+                        .HasColumnName("operator");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("text")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConditionGroupId");
+
+                    b.ToTable("workflow_conditions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowConditionGroup", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<int>("LogicOperator")
+                        .HasColumnType("integer")
+                        .HasColumnName("logicOperator");
+
+                    b.Property<string>("ParentGroupId")
+                        .HasColumnType("text")
+                        .HasColumnName("parentGroupId");
+
+                    b.Property<string>("WorkflowId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("workflowId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentGroupId");
+
+                    b.HasIndex("WorkflowId");
+
+                    b.ToTable("workflow_condition_groups", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowExecution", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completedAt");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("startedAt");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TriggerContextJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("triggerContext");
+
+                    b.Property<int>("TriggeredBy")
+                        .HasColumnType("integer")
+                        .HasColumnName("triggeredBy");
+
+                    b.Property<string>("WorkflowId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("workflowId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "StartedAt");
+
+                    b.HasIndex("WorkflowId", "StartedAt");
+
+                    b.ToTable("workflow_executions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowExecutionStep", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActionId")
+                        .HasColumnType("text")
+                        .HasColumnName("actionId");
+
+                    b.Property<int>("ActionType")
+                        .HasColumnType("integer")
+                        .HasColumnName("actionType");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("error");
+
+                    b.Property<DateTime>("ExecutedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("executedAt");
+
+                    b.Property<string>("Output")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("output");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("WorkflowExecutionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("workflowExecutionId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActionId");
+
+                    b.HasIndex("WorkflowExecutionId");
+
+                    b.ToTable("workflow_execution_steps", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowTrigger", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("ConfigJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("config");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("CronExpression")
+                        .HasColumnType("text")
+                        .HasColumnName("cronExpression");
+
+                    b.Property<DateTime?>("NextRunAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("nextRunAtUtc");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<string>("WorkflowId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("workflowId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("WorkflowId")
+                        .IsUnique();
+
+                    b.HasIndex("Type", "NextRunAtUtc");
+
+                    b.ToTable("workflow_triggers", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.ActivityLog", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("ActivityLogs")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.AiEmailDraft", b =>
@@ -1231,6 +3355,24 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Communication");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.ApiKey", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("CreatedByUser");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.AuditLog", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -1247,6 +3389,17 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Branch", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.CalendarSyncToken", b =>
@@ -1268,6 +3421,24 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Category", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Category", "ParentCategory")
+                        .WithMany("SubCategories")
+                        .HasForeignKey("ParentCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("ParentCategory");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Communication", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -1286,6 +3457,17 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Contact");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.CompanySettings", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Contact", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -1302,6 +3484,45 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Contract", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Contact", "Contact")
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Deal", "Deal")
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "SignedByUser")
+                        .WithMany()
+                        .HasForeignKey("SignedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Template", "Template")
+                        .WithMany("Contracts")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Contact");
+
+                    b.Navigation("Deal");
+
+                    b.Navigation("SignedByUser");
+
+                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Deal", b =>
@@ -1328,6 +3549,64 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Contact");
 
                     b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Department", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "Manager")
+                        .WithMany()
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Department", "ParentDepartment")
+                        .WithMany("SubDepartments")
+                        .HasForeignKey("ParentDepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Manager");
+
+                    b.Navigation("ParentDepartment");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Expense", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "PaidBy")
+                        .WithMany()
+                        .HasForeignKey("PaidById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.FileAsset", "ReceiptFile")
+                        .WithMany()
+                        .HasForeignKey("ReceiptFileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("PaidBy");
+
+                    b.Navigation("ReceiptFile");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.FileAsset", b =>
@@ -1370,6 +3649,85 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("UploadedBy");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.FileVersion", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.FileAsset", "FileAsset")
+                        .WithMany()
+                        .HasForeignKey("FileAssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "UploadedBy")
+                        .WithMany()
+                        .HasForeignKey("UploadedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("FileAsset");
+
+                    b.Navigation("UploadedBy");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Inventory", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Product", "Product")
+                        .WithMany("InventoryRecords")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.InventoryMovement", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Inventory", "Inventory")
+                        .WithMany("Movements")
+                        .HasForeignKey("InventoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Inventory");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Invoice", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -1394,6 +3752,23 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Contact");
 
                     b.Navigation("Deal");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.LoginHistory", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany("LoginHistories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Meeting", b =>
@@ -1427,6 +3802,44 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Deal");
 
                     b.Navigation("Organizer");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("Notifications")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.NotificationPreference", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.OAuthConnection", b =>
@@ -1467,6 +3880,91 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Invoice");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PaymentTransaction", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.SubscriptionInvoice", "SubscriptionInvoice")
+                        .WithMany("PaymentTransactions")
+                        .HasForeignKey("SubscriptionInvoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("SubscriptionInvoice");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Product", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Category", "Category")
+                        .WithMany("Products")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PurchaseOrder", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Supplier", "Supplier")
+                        .WithMany("PurchaseOrders")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PurchaseOrderLineItem", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Product", "Product")
+                        .WithMany("PurchaseOrderLineItems")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("LineItems")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("PurchaseOrder");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.RbacRole", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("Roles")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.User", "User")
@@ -1476,6 +3974,118 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Report", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.RolePermission", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Permission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.RbacRole", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Subscription", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.SubscriptionPlan", "PendingPlan")
+                        .WithMany()
+                        .HasForeignKey("PendingPlanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BusinessOS.Domain.Entities.SubscriptionPlan", "Plan")
+                        .WithMany("Subscriptions")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("PendingPlan");
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionInvoice", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Subscription", "Subscription")
+                        .WithMany("Invoices")
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Subscription");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionPlanFeature", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.SubscriptionPlan", "Plan")
+                        .WithMany("Features")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Supplier", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.TaskItem", b =>
@@ -1510,6 +4120,69 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Deal");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Team", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "TeamLead")
+                        .WithMany()
+                        .HasForeignKey("TeamLeadId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("TeamLead");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.TeamMember", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Team");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Template", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.TimeEntry", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -1536,15 +4209,110 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.UsageCounter", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.User", b =>
                 {
+                    b.HasOne("BusinessOS.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
                         .WithMany("Users")
                         .HasForeignKey("CompanyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BusinessOS.Domain.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "Manager")
+                        .WithMany("DirectReports")
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.RbacRole", "RbacRole")
+                        .WithMany("Users")
+                        .HasForeignKey("RbacRoleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Branch");
+
                     b.Navigation("Company");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Manager");
+
+                    b.Navigation("RbacRole");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.UserPermissionOverride", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Permission", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Webhook", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WebhookDeliveryLog", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Webhook", "Webhook")
+                        .WithMany()
+                        .HasForeignKey("WebhookId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Webhook");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.WhatsAppAccount", b =>
@@ -1558,6 +4326,128 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Workflow", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowAction", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Workflow", "Workflow")
+                        .WithMany("Actions")
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workflow");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowCondition", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.WorkflowConditionGroup", "ConditionGroup")
+                        .WithMany("Conditions")
+                        .HasForeignKey("ConditionGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConditionGroup");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowConditionGroup", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.WorkflowConditionGroup", "ParentGroup")
+                        .WithMany("ChildGroups")
+                        .HasForeignKey("ParentGroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("BusinessOS.Domain.Entities.Workflow", "Workflow")
+                        .WithMany("ConditionGroups")
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParentGroup");
+
+                    b.Navigation("Workflow");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowExecution", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Workflow", "Workflow")
+                        .WithMany("Executions")
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Workflow");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowExecutionStep", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.WorkflowAction", "Action")
+                        .WithMany("ExecutionSteps")
+                        .HasForeignKey("ActionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BusinessOS.Domain.Entities.WorkflowExecution", "WorkflowExecution")
+                        .WithMany("Steps")
+                        .HasForeignKey("WorkflowExecutionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Action");
+
+                    b.Navigation("WorkflowExecution");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowTrigger", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Workflow", "Workflow")
+                        .WithOne("Trigger")
+                        .HasForeignKey("BusinessOS.Domain.Entities.WorkflowTrigger", "WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Workflow");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Category", b =>
+                {
+                    b.Navigation("Products");
+
+                    b.Navigation("SubCategories");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Communication", b =>
                 {
                     b.Navigation("AiSummary");
@@ -1565,6 +4455,8 @@ namespace BusinessOS.Infrastructure.Migrations
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Company", b =>
                 {
+                    b.Navigation("ActivityLogs");
+
                     b.Navigation("AiEmailDrafts");
 
                     b.Navigation("AiQueryResults");
@@ -1587,9 +4479,13 @@ namespace BusinessOS.Infrastructure.Migrations
 
                     b.Navigation("Meetings");
 
+                    b.Navigation("Notifications");
+
                     b.Navigation("OAuthConnections");
 
                     b.Navigation("Payments");
+
+                    b.Navigation("Roles");
 
                     b.Navigation("Tasks");
 
@@ -1630,9 +4526,19 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Tasks");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Department", b =>
+                {
+                    b.Navigation("SubDepartments");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.FileAsset", b =>
                 {
                     b.Navigation("AiQuotation");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Inventory", b =>
+                {
+                    b.Navigation("Movements");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Invoice", b =>
@@ -1642,9 +4548,60 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Payments");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Permission", b =>
+                {
+                    b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Product", b =>
+                {
+                    b.Navigation("InventoryRecords");
+
+                    b.Navigation("PurchaseOrderLineItems");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.PurchaseOrder", b =>
+                {
+                    b.Navigation("LineItems");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.RbacRole", b =>
+                {
+                    b.Navigation("RolePermissions");
+
+                    b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Subscription", b =>
+                {
+                    b.Navigation("Invoices");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionInvoice", b =>
+                {
+                    b.Navigation("PaymentTransactions");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Navigation("Features");
+
+                    b.Navigation("Subscriptions");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Supplier", b =>
+                {
+                    b.Navigation("PurchaseOrders");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.TaskItem", b =>
                 {
                     b.Navigation("TimeEntries");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Template", b =>
+                {
+                    b.Navigation("Contracts");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.User", b =>
@@ -1654,6 +4611,12 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("AuditLogs");
 
                     b.Navigation("CalendarSyncToken");
+
+                    b.Navigation("DirectReports");
+
+                    b.Navigation("LoginHistories");
+
+                    b.Navigation("Notifications");
 
                     b.Navigation("OAuthConnections");
 
@@ -1668,6 +4631,34 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("TimeEntries");
 
                     b.Navigation("UploadedFiles");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.Workflow", b =>
+                {
+                    b.Navigation("Actions");
+
+                    b.Navigation("ConditionGroups");
+
+                    b.Navigation("Executions");
+
+                    b.Navigation("Trigger");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowAction", b =>
+                {
+                    b.Navigation("ExecutionSteps");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowConditionGroup", b =>
+                {
+                    b.Navigation("ChildGroups");
+
+                    b.Navigation("Conditions");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.WorkflowExecution", b =>
+                {
+                    b.Navigation("Steps");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,13 +1,15 @@
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
+using BusinessOS.Application.Constants;
 using BusinessOS.Application.ViewModels;
+using BusinessOS.Application.ViewModels.Activity;
 using BusinessOS.Application.ViewModels.Contacts;
 using BusinessOS.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace BusinessOS.Application.Services;
 
-public class ContactsService(IAppDbContext db) : IContactsService
+public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnforcement, IActivityLogService activityLog) : IContactsService
 {
     public async Task<PagedResult<ContactDto>> ListAsync(string companyId, QueryContactsRequest query, CancellationToken cancellationToken = default)
     {
@@ -31,6 +33,11 @@ public class ContactsService(IAppDbContext db) : IContactsService
         if (!string.IsNullOrWhiteSpace(query.OwnerId))
         {
             contacts = contacts.Where(c => c.OwnerId == query.OwnerId);
+        }
+
+        if (!query.IncludeArchived)
+        {
+            contacts = contacts.Where(c => !c.IsArchived);
         }
 
         var total = await contacts.CountAsync(cancellationToken);
@@ -68,25 +75,12 @@ public class ContactsService(IAppDbContext db) : IContactsService
                 .ToList());
     }
 
-    public async Task<IReadOnlyList<ContactCommunicationSummary>> GetTimelineAsync(string companyId, string id, CancellationToken cancellationToken = default)
-    {
-        var exists = await db.Contacts.AnyAsync(c => c.Id == id, cancellationToken);
-        if (!exists)
-        {
-            throw new NotFoundException("Contact not found");
-        }
-
-        var communications = await db.Communications
-            .Include(cm => cm.AiSummary)
-            .Where(cm => cm.ContactId == id)
-            .OrderBy(cm => cm.Timestamp)
-            .ToListAsync(cancellationToken);
-
-        return communications.Select(ToCommunicationSummary).ToList();
-    }
+    public Task<IReadOnlyList<TimelineEventDto>> GetTimelineAsync(string companyId, string id, CancellationToken cancellationToken = default) =>
+        activityLog.GetContactTimelineAsync(companyId, id, cancellationToken);
 
     public async Task<ContactDto> CreateAsync(string companyId, CreateContactRequest request, CancellationToken cancellationToken = default)
     {
+        await limitEnforcement.CheckLimitAsync(companyId, UsageMetricKeys.MaxContacts, cancellationToken);
         await ValidateOwnerAsync(companyId, request.OwnerId, cancellationToken);
 
         var contact = new Contact
@@ -169,5 +163,123 @@ public class ContactsService(IAppDbContext db) : IContactsService
 
     private static ContactDto ToDto(Contact c) => new(
         c.Id, c.CompanyId, c.FirstName, c.LastName, c.Email, c.Phone, c.Position, c.CompanyName, c.Notes,
-        c.OwnerId, c.Owner?.Name, c.Tags, c.CreatedAt, c.UpdatedAt);
+        c.OwnerId, c.Owner?.Name, c.Tags, c.CreatedAt, c.UpdatedAt, c.IsArchived);
+
+    public async Task<BulkOperationResult> BulkUpdateAsync(string companyId, IReadOnlyList<string> ids, UpdateContactRequest patch, CancellationToken cancellationToken = default)
+    {
+        var results = new List<BulkOperationResultItem>();
+        foreach (var id in ids)
+        {
+            try
+            {
+                await UpdateAsync(companyId, id, patch, cancellationToken);
+                results.Add(new BulkOperationResultItem(id, true, null));
+            }
+            catch (Exception ex) when (ex is NotFoundException or ConflictException or ValidationAppException or ForbiddenException)
+            {
+                results.Add(new BulkOperationResultItem(id, false, ex.Message));
+            }
+        }
+
+        return BulkOperationResult.From(results);
+    }
+
+    public async Task<BulkOperationResult> BulkDeleteAsync(string companyId, IReadOnlyList<string> ids, CancellationToken cancellationToken = default)
+    {
+        var results = new List<BulkOperationResultItem>();
+        foreach (var id in ids)
+        {
+            try
+            {
+                await RemoveAsync(companyId, id, cancellationToken);
+                results.Add(new BulkOperationResultItem(id, true, null));
+            }
+            catch (Exception ex) when (ex is NotFoundException or ConflictException or ValidationAppException or ForbiddenException)
+            {
+                results.Add(new BulkOperationResultItem(id, false, ex.Message));
+            }
+        }
+
+        return BulkOperationResult.From(results);
+    }
+
+    public async Task<string> ExportCsvAsync(string companyId, CancellationToken cancellationToken = default)
+    {
+        var contacts = await db.Contacts.Where(c => c.CompanyId == companyId).OrderBy(c => c.CreatedAt).ToListAsync(cancellationToken);
+
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("FirstName,LastName,Email,Phone,Position,CompanyName,Notes");
+        foreach (var c in contacts)
+        {
+            csv.AppendLine(string.Join(',',
+                CsvUtils.Field(c.FirstName), CsvUtils.Field(c.LastName), CsvUtils.Field(c.Email), CsvUtils.Field(c.Phone),
+                CsvUtils.Field(c.Position), CsvUtils.Field(c.CompanyName), CsvUtils.Field(c.Notes)));
+        }
+
+        return csv.ToString();
+    }
+
+    // Dedup by Email (case-insensitive) within the company - a row whose Email already
+    // exists is Skipped, not treated as an error, per the existing product decision on
+    // default import dedup strategy. Rows with no Email (or a FirstName-less row) can't be
+    // deduped meaningfully and are always imported.
+    public async Task<ImportResultDto> ImportCsvAsync(string companyId, string csvContent, CancellationToken cancellationToken = default)
+    {
+        var rows = CsvUtils.ParseRows(csvContent);
+        if (rows.Count == 0)
+        {
+            return new ImportResultDto(0, 0, []);
+        }
+
+        var existingEmails = (await db.Contacts.Where(c => c.CompanyId == companyId && c.Email != null)
+            .Select(c => c.Email!.ToLower()).ToListAsync(cancellationToken)).ToHashSet();
+
+        var imported = 0;
+        var skipped = 0;
+        var errors = new List<ImportErrorDto>();
+
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            var rowNumber = i + 1;
+
+            if (row.Length == 0 || string.IsNullOrWhiteSpace(row[0]))
+            {
+                errors.Add(new ImportErrorDto(rowNumber, "FirstName is required"));
+                continue;
+            }
+
+            var email = row.Length > 2 ? row[2] : null;
+            if (!string.IsNullOrWhiteSpace(email) && existingEmails.Contains(email.ToLower()))
+            {
+                skipped++;
+                continue;
+            }
+
+            var contact = new Contact
+            {
+                CompanyId = companyId,
+                FirstName = row[0],
+                LastName = row.Length > 1 ? EmptyToNull(row[1]) : null,
+                Email = EmptyToNull(email),
+                Phone = row.Length > 3 ? PhoneUtil.Normalize(EmptyToNull(row[3])) : null,
+                Position = row.Length > 4 ? EmptyToNull(row[4]) : null,
+                CompanyName = row.Length > 5 ? EmptyToNull(row[5]) : null,
+                Notes = row.Length > 6 ? EmptyToNull(row[6]) : null,
+            };
+
+            db.Contacts.Add(contact);
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                existingEmails.Add(email.ToLower());
+            }
+
+            imported++;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return new ImportResultDto(imported, skipped, errors);
+    }
+
+    private static string? EmptyToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 }

@@ -11,7 +11,7 @@ public class TimeEntriesService(IAppDbContext db) : ITimeEntriesService
 {
     public async Task<TimeEntryDto?> GetActiveAsync(string companyId, string userId, CancellationToken cancellationToken = default)
     {
-        var entry = await db.TimeEntries.Include(te => te.User)
+        var entry = await db.TimeEntries.Include(te => te.User).Include(te => te.Task)
             .SingleOrDefaultAsync(te => te.UserId == userId && te.StoppedAt == null, cancellationToken);
         return entry is null ? null : ToDto(entry);
     }
@@ -45,12 +45,13 @@ public class TimeEntriesService(IAppDbContext db) : ITimeEntriesService
         await db.SaveChangesAsync(cancellationToken);
 
         entry.User = await db.Users.FindAsync([userId], cancellationToken);
+        entry.Task = task;
         return ToDto(entry);
     }
 
     public async Task<TimeEntryDto> StopAsync(string companyId, string userId, string taskId, CancellationToken cancellationToken = default)
     {
-        var entry = await db.TimeEntries.Include(te => te.User)
+        var entry = await db.TimeEntries.Include(te => te.User).Include(te => te.Task)
             .SingleOrDefaultAsync(te => te.TaskId == taskId && te.UserId == userId && te.StoppedAt == null, cancellationToken)
             ?? throw new NotFoundException("No running timer found for this task");
 
@@ -63,7 +64,7 @@ public class TimeEntriesService(IAppDbContext db) : ITimeEntriesService
 
     public async Task<IReadOnlyList<TimeEntryDto>> ListForTaskAsync(string companyId, string taskId, CancellationToken cancellationToken = default)
     {
-        var entries = await db.TimeEntries.Include(te => te.User)
+        var entries = await db.TimeEntries.Include(te => te.User).Include(te => te.Task)
             .Where(te => te.TaskId == taskId)
             .OrderByDescending(te => te.StartedAt)
             .ToListAsync(cancellationToken);
@@ -80,5 +81,5 @@ public class TimeEntriesService(IAppDbContext db) : ITimeEntriesService
     }
 
     private static TimeEntryDto ToDto(TimeEntry te) => new(
-        te.Id, te.TaskId, te.UserId, te.User?.Name, te.StartedAt, te.StoppedAt, te.DurationSec, te.Note);
+        te.Id, te.TaskId, te.Task?.Title, te.UserId, te.User?.Name, te.StartedAt, te.StoppedAt, te.DurationSec, te.Note);
 }

@@ -24,7 +24,7 @@ public record UpdateDealRequest(
 
 public record UpdateDealStageRequest(DealStage Stage);
 
-public record QueryDealsRequest(DealStage? Stage, string? OwnerId);
+public record QueryDealsRequest(DealStage? Stage, string? OwnerId, bool IncludeArchived = false);
 
 public record DealDto(
     string Id,
@@ -40,7 +40,10 @@ public record DealDto(
     string? OwnerId,
     string? OwnerName,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    bool IsArchived = false);
+
+public record BulkUpdateDealsRequest(List<string> Ids, UpdateDealRequest Patch);
 
 public record DealTaskSummary(string Id, string Title, string Status, DateTime? DueDate);
 
@@ -59,8 +62,9 @@ public record DealDetailDto(
     string? OwnerName,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    IReadOnlyList<DealTaskSummary> Tasks)
-    : DealDto(Id, CompanyId, ContactId, ContactName, Title, Value, Currency, Stage, Probability, ExpectedCloseDate, OwnerId, OwnerName, CreatedAt, UpdatedAt);
+    IReadOnlyList<DealTaskSummary> Tasks,
+    bool IsArchived = false)
+    : DealDto(Id, CompanyId, ContactId, ContactName, Title, Value, Currency, Stage, Probability, ExpectedCloseDate, OwnerId, OwnerName, CreatedAt, UpdatedAt, IsArchived);
 
 public class CreateDealRequestValidator : AbstractValidator<CreateDealRequest>
 {
@@ -88,5 +92,14 @@ public class UpdateDealStageRequestValidator : AbstractValidator<UpdateDealStage
     public UpdateDealStageRequestValidator()
     {
         RuleFor(x => x.Stage).IsInEnum();
+    }
+}
+
+public class BulkUpdateDealsRequestValidator : AbstractValidator<BulkUpdateDealsRequest>
+{
+    public BulkUpdateDealsRequestValidator()
+    {
+        RuleFor(x => x.Ids).NotEmpty().Must(ids => ids.Count <= 200).WithMessage("A bulk operation is limited to 200 ids at a time");
+        RuleFor(x => x.Patch).SetValidator(new UpdateDealRequestValidator());
     }
 }

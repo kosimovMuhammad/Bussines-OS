@@ -41,3 +41,28 @@ public class FileAssetConfiguration : IEntityTypeConfiguration<FileAsset>
         builder.HasIndex(f => f.InvoiceId);
     }
 }
+
+public class FileVersionConfiguration : IEntityTypeConfiguration<FileVersion>
+{
+    public void Configure(EntityTypeBuilder<FileVersion> builder)
+    {
+        builder.ToTable("file_versions");
+
+        builder.HasOne(v => v.Company)
+            .WithMany()
+            .HasForeignKey(v => v.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(v => v.FileAsset)
+            .WithMany()
+            .HasForeignKey(v => v.FileAssetId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(v => v.UploadedBy)
+            .WithMany()
+            .HasForeignKey(v => v.UploadedById)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(v => new { v.FileAssetId, v.VersionNumber }).IsUnique();
+    }
+}

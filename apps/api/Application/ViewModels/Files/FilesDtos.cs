@@ -47,3 +47,23 @@ public class ConfirmFileRequestValidator : AbstractValidator<ConfirmFileRequest>
             .WithMessage("At least one of contactId/dealId/invoiceId is required");
     }
 }
+
+public record FileVersionDto(
+    string Id,
+    int VersionNumber,
+    string Filename,
+    string MimeType,
+    int SizeBytes,
+    string UploadedById,
+    string UploadedByName,
+    DateTime CreatedAt);
+
+public record RestoreFileVersionRequest(string VersionId);
+
+public class RestoreFileVersionRequestValidator : AbstractValidator<RestoreFileVersionRequest>
+{
+    public RestoreFileVersionRequestValidator()
+    {
+        RuleFor(x => x.VersionId).NotEmpty();
+    }
+}

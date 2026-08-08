@@ -6,12 +6,16 @@ public record SalesAnalyticsDto(IReadOnlyDictionary<string, int> PipelineByStage
 
 public record RevenuePointDto(string Period, decimal Revenue);
 
+public record RevenueAnalyticsDto(decimal TotalWonValue, IReadOnlyList<RevenuePointDto> RevenueByMonth);
+
 public record TaskStatsDto(IReadOnlyDictionary<string, int> ByStatus, IReadOnlyDictionary<string, int> ByPriority, int OverdueCount);
 
-public record ActivityFeedItemDto(string Type, string Id, string Title, DateTime Timestamp);
+public record ActivityFeedItemDataDto(string Id, string Title);
 
-public record FinanceAnalyticsDto(decimal Outstanding, decimal Overdue, decimal PaidThisMonth, IReadOnlyList<RevenuePointDto> RevenueByMonth);
+public record ActivityFeedItemDto(string Type, DateTime Timestamp, ActivityFeedItemDataDto Data);
+
+public record FinanceAnalyticsDto(decimal TotalOutstanding, decimal Overdue, decimal PaidThisMonth, IReadOnlyList<RevenuePointDto> RevenueByMonth);
 
 public record UpcomingMeetingDto(string Id, string Title, DateTime StartAt, DateTime EndAt, string? ContactName);
 
-public record ForecastDto(decimal WeightedForecast30Days, string Summary);
+public record ForecastDto(decimal WeightedForecast30Days, decimal ConfidencePercentage, string Summary);
