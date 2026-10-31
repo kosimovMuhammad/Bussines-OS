@@ -5,10 +5,11 @@ using BusinessOS.Application.ViewModels.Invoicing;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Application.Services;
 
-public class InvoicingService(IAppDbContext db) : IInvoicingService
+public class InvoicingService(IAppDbContext db, INotificationService notifications, ILogger<InvoicingService> logger) : IInvoicingService
 {
     public async Task<PagedResult<InvoiceDto>> ListAsync(string companyId, QueryInvoicesRequest query, CancellationToken cancellationToken = default)
     {
@@ -174,6 +175,29 @@ public class InvoicingService(IAppDbContext db) : IInvoicingService
         }
 
         await db.SaveChangesAsync(cancellationToken);
+
+        // No owner field on Invoice itself - the notification target is resolved via the
+        // linked Deal's owner. Invoices with no linked Deal (or a Deal with no owner) have no
+        // natural recipient, so the notification is skipped rather than guessing one.
+        if (invoice.DealId is not null)
+        {
+            var deal = await db.Deals.SingleOrDefaultAsync(d => d.Id == invoice.DealId, cancellationToken);
+            if (deal?.OwnerId is not null)
+            {
+                await notifications.NotifyAsync(companyId, deal.OwnerId, NotificationType.PaymentReceived,
+                    "Payment received", $"A payment of {request.Amount} {invoice.Currency} was received for invoice {invoice.InvoiceNumber}",
+                    "Invoice", invoice.Id, cancellationToken);
+            }
+            else
+            {
+                logger.LogDebug("Skipping PaymentReceived notification for invoice {InvoiceId} - linked deal has no owner", invoiceId);
+            }
+        }
+        else
+        {
+            logger.LogDebug("Skipping PaymentReceived notification for invoice {InvoiceId} - not linked to a deal", invoiceId);
+        }
+
         return ToPaymentDto(payment);
     }
 

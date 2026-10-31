@@ -2,6 +2,7 @@ using BusinessOS.Application.Configurations.Exceptions;
 using BusinessOS.Application.Services;
 using BusinessOS.Application.ViewModels.Organization;
 using BusinessOS.Domain.Entities;
+using BusinessOS.Domain.Enums;
 using BusinessOS.Tests.TestSupport;
 
 namespace BusinessOS.Tests.Unit;
@@ -189,7 +190,7 @@ public class OrganizationServiceTests
         await service.CreateDepartmentAsync(companyA.Id, new CreateDepartmentRequest("A-Dept", null, null, null));
         await service.CreateDepartmentAsync(companyB.Id, new CreateDepartmentRequest("B-Dept", null, null, null));
 
-        db.TenantContext.Set(companyA.Id);
+        db.TenantContext.Set(companyA.Id, Role.Owner, null);
         var visible = await service.ListDepartmentsFlatAsync(companyA.Id);
 
         Assert.Single(visible);

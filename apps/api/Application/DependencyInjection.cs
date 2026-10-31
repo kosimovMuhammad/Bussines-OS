@@ -22,10 +22,15 @@ public static class DependencyInjection
         services.AddScoped<IInvoicingService, InvoicingService>();
         services.AddScoped<IFilesService, FilesService>();
         services.AddScoped<IWhatsAppService, WhatsAppService>();
+        services.AddScoped<IWhatsAppTokenRefreshService, WhatsAppTokenRefreshService>();
+        services.AddScoped<ITelegramService, TelegramService>();
+        services.AddScoped<IInstagramService, InstagramService>();
+        services.AddScoped<IInstagramTokenRefreshService, InstagramTokenRefreshService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICalendarService, CalendarService>();
         services.AddScoped<ICalendarConnectionService, CalendarConnectionService>();
         services.AddScoped<IAiService, AiService>();
+        services.AddScoped<IAiUsageService, AiUsageService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IOrganizationService, OrganizationService>();
         services.AddScoped<IRoleSeedingService, RoleSeedingService>();
@@ -34,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<ITaskDueNotificationService, TaskDueNotificationService>();
         services.AddScoped<ISessionsService, SessionsService>();
         services.AddScoped<IApiKeysService, ApiKeysService>();
         services.AddScoped<IWorkflowService, WorkflowService>();

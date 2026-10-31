@@ -25,7 +25,7 @@ public class ActivityLogSaveChangesInterceptorTests
         db.Context.Users.Add(user);
         await db.Context.SaveChangesAsync();
 
-        actingUser.Set(user.Id, company.Id, Role.Owner);
+        actingUser.Set(user.Id, company.Id, Role.Owner, null);
         db.Context.Contacts.Add(new Contact { CompanyId = company.Id, FirstName = "Bob" });
         await db.Context.SaveChangesAsync();
 

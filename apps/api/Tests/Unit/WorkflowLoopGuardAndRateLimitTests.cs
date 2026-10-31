@@ -2,6 +2,7 @@ using BusinessOS.Application.Services;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using BusinessOS.Tests.TestSupport;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BusinessOS.Tests.Unit;
 
@@ -16,7 +17,8 @@ public class WorkflowLoopGuardAndRateLimitTests
         db.Context.Users.Add(user);
         db.Context.SaveChanges();
 
-        var executor = new WorkflowActionExecutor(db.Context, new NotificationService(db.Context), new FakeEmailService(), new FakeWhatsAppService());
+        var notifications = new NotificationService(db.Context, new AuditLogService(db.Context), new NoopBackgroundTaskQueue(), NullLogger<NotificationService>.Instance);
+        var executor = new WorkflowActionExecutor(db.Context, notifications, new FakeEmailService(), new FakeWhatsAppService());
         var service = new WorkflowExecutionService(db.Context, executor, rateLimiter ?? new NoopWorkflowRateLimiter());
         return (db, service, company, user);
     }

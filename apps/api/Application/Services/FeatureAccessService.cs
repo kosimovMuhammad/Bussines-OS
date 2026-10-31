@@ -1,5 +1,6 @@
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Constants;
+using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace BusinessOS.Application.Services;
@@ -14,7 +15,7 @@ public class FeatureAccessService(IAppDbContext db) : IFeatureAccessService
     public async Task<bool> HasFeatureAsync(string companyId, string featureKey, CancellationToken cancellationToken = default)
     {
         var subscription = await db.Subscriptions.SingleOrDefaultAsync(s => s.CompanyId == companyId, cancellationToken);
-        if (subscription is null)
+        if (subscription is null || !GrantsFeatures(subscription.Status))
         {
             return false;
         }
@@ -28,7 +29,7 @@ public class FeatureAccessService(IAppDbContext db) : IFeatureAccessService
     public async Task<IReadOnlyDictionary<string, bool>> GetFeatureFlagsAsync(string companyId, CancellationToken cancellationToken = default)
     {
         var subscription = await db.Subscriptions.SingleOrDefaultAsync(s => s.CompanyId == companyId, cancellationToken);
-        if (subscription is null)
+        if (subscription is null || !GrantsFeatures(subscription.Status))
         {
             return FeatureKeys.All.ToDictionary(k => k, _ => false);
         }
@@ -39,4 +40,11 @@ public class FeatureAccessService(IAppDbContext db) : IFeatureAccessService
 
         return FeatureKeys.All.ToDictionary(k => k, k => enabled.GetValueOrDefault(k));
     }
+
+    // Canceled/Expired are terminal "nothing currently paid for" states - same fail-closed
+    // treatment as no subscription row at all (see IFeatureAccessService's doc comment).
+    // Trialing/Active/PastDue all still hold a live plan (PastDue is a grace period, not a
+    // cutoff) so they keep granting whatever the plan enables.
+    private static bool GrantsFeatures(SubscriptionStatus status) =>
+        status is not (SubscriptionStatus.Canceled or SubscriptionStatus.Expired);
 }

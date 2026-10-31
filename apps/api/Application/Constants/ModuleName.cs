@@ -12,6 +12,8 @@ public enum ModuleName
     Invoices,
     Files,
     WhatsApp,
+    Telegram,
+    Instagram,
     Email,
     Calendar,
     Ai,

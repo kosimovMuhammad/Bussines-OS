@@ -3,11 +3,13 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using BusinessOS.Application;
 using BusinessOS.Infrastructure;
+using BusinessOS.Infrastructure.Realtime;
 using BusinessOS.WebApi.Authorization;
 using BusinessOS.WebApi.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -19,7 +21,7 @@ var corsOrigins = (builder.Configuration["CORS_ORIGIN"] ?? "http://localhost:517
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
 builder.Services
     .AddControllers(options => options.Filters.Add<PermissionAuthorizationFilter>())
@@ -59,6 +61,22 @@ builder.Services
             ClockSkew = TimeSpan.Zero,
             NameClaimType = "sub",
             RoleClaimType = "role",
+        };
+        options.Events = new JwtBearerEvents
+        {
+            // Browsers can't set an Authorization header on the WebSocket handshake, so
+            // SignalR's JS client sends the token as ?access_token=... instead - standard
+            // SignalR+JWT pattern, scoped to only the hub path so every other endpoint still
+            // requires a real Authorization header.
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
         };
     });
 
@@ -100,6 +118,19 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = "docs";
 });
 
+if (app.Environment.IsDevelopment())
+{
+    // Serves files LocalDiskFileStorageService wrote to App_Data/uploads - the local stand-in
+    // for a real S3 GET presigned URL. See DependencyInjection.AddInfrastructure.
+    var uploadsRoot = Path.Combine(app.Environment.ContentRootPath, "App_Data", "uploads");
+    Directory.CreateDirectory(uploadsRoot);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(uploadsRoot),
+        RequestPath = "/uploads",
+    });
+}
+
 app.UseCors("default");
 app.UseRateLimiter();
 
@@ -108,6 +139,7 @@ app.UseMiddleware<TenantContextMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<MessagingHub>("/hubs/messaging");
 
 app.Run();
 
@@ -136,6 +168,27 @@ static void ValidateRequiredConfiguration(IConfiguration configuration)
     RequireMinLength("JWT_ACCESS_SECRET", 32);
     RequireMinLength("JWT_REFRESH_SECRET", 32);
     RequireMinLength("ENCRYPTION_KEY", 32);
+
+    // Gmail OAuth previously failed at redirect time with Google's cryptic "Missing required
+    // parameter: client_id" instead of failing here at startup - GmailClient.GetAuthUrl reads
+    // these same flat keys straight from IConfiguration with no null-check of its own.
+    if (string.IsNullOrEmpty(configuration["GOOGLE_CLIENT_ID"]))
+    {
+        errors.Add("GOOGLE_CLIENT_ID is required (set via user secrets or an environment variable) - Gmail OAuth cannot start an authorization flow without it");
+    }
+
+    if (string.IsNullOrEmpty(configuration["GOOGLE_CLIENT_SECRET"]))
+    {
+        errors.Add("GOOGLE_CLIENT_SECRET is required (set via user secrets or an environment variable) - Gmail OAuth cannot exchange the authorization code without it");
+    }
+
+    // PUBLIC_URL backs the OAuth redirect_uri for both Gmail and Outlook (GmailClient/OutlookClient
+    // RedirectUri()) - if unset, redirect_uri is built with a null host, which Google/Microsoft
+    // reject just as opaquely as a missing client_id.
+    if (string.IsNullOrEmpty(configuration["PUBLIC_URL"]))
+    {
+        errors.Add("PUBLIC_URL is required (set via user secrets or an environment variable) - it must be a public HTTPS URL (e.g. an ngrok tunnel in local dev) since Google/Microsoft cannot redirect to localhost");
+    }
 
     if (errors.Count > 0)
     {

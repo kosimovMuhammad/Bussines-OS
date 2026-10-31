@@ -4,6 +4,7 @@ using BusinessOS.Application.Services;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using BusinessOS.Tests.TestSupport;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BusinessOS.Tests.Unit;
 
@@ -20,7 +21,8 @@ public class WorkflowExecutionServiceTests
 
         var email = new FakeEmailService();
         var whatsApp = new FakeWhatsAppService();
-        var executor = new WorkflowActionExecutor(db.Context, new NotificationService(db.Context), email, whatsApp);
+        var notifications = new NotificationService(db.Context, new AuditLogService(db.Context), new NoopBackgroundTaskQueue(), NullLogger<NotificationService>.Instance);
+        var executor = new WorkflowActionExecutor(db.Context, notifications, email, whatsApp);
         var service = new WorkflowExecutionService(db.Context, executor, new NoopWorkflowRateLimiter());
 
         return (db, service, company, user, email, whatsApp);
