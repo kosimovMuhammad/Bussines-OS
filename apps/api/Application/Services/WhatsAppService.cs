@@ -1,14 +1,23 @@
 using System.Data.Common;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
+using BusinessOS.Application.ViewModels.Communications;
 using BusinessOS.Application.ViewModels.WhatsApp;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Application.Services;
 
-public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCipher tokenCipher) : IWhatsAppService
+public class WhatsAppService(
+    IAppDbContext db,
+    IWhatsAppClient client,
+    ITokenCipher tokenCipher,
+    IRealtimeNotifier notifier,
+    IAuditLogService auditLog,
+    INotificationService notifications,
+    ILogger<WhatsAppService> logger) : IWhatsAppService
 {
     public async Task<IReadOnlyList<WhatsAppAccountDto>> ListAccountsAsync(string companyId, CancellationToken cancellationToken = default)
     {
@@ -16,20 +25,90 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
         return accounts.Select(ToDto).ToList();
     }
 
+    // Legacy manual-paste path - kept as a fallback, but HandleEmbeddedSignupAsync below is the
+    // flow the frontend should actually drive (see IWhatsAppClient for why: Embedded Signup
+    // never exposes a raw token to the user).
     public async Task<WhatsAppAccountDto> ConnectAccountAsync(string companyId, ConnectWhatsAppAccountRequest request, CancellationToken cancellationToken = default)
     {
+        var account = await UpsertAccountAsync(
+            companyId, request.PhoneNumberId, request.WabaId, request.AccessToken, request.VerifiedName, null, cancellationToken);
+        return ToDto(account);
+    }
+
+    // WhatsApp Embedded Signup (mirrors InstagramService.HandleOAuthCallbackAsync): unlike the
+    // Instagram flow this never leaves the current page (no browser redirect/state param - the
+    // code comes straight from the frontend's FB.login() popup callback), so it's just a normal
+    // authenticated endpoint, not an anonymous OAuth callback.
+    public async Task<WhatsAppAccountDto> HandleEmbeddedSignupAsync(string companyId, HandleWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default)
+    {
+        var shortLived = await client.ExchangeCodeAsync(request.Code, cancellationToken);
+        var longLived = await client.ExchangeForLongLivedTokenAsync(shortLived.AccessToken, cancellationToken);
+        var verifiedName = await client.GetVerifiedNameAsync(longLived.AccessToken, request.PhoneNumberId, cancellationToken);
+
+        var account = await UpsertAccountAsync(
+            companyId, request.PhoneNumberId, request.WabaId, longLived.AccessToken, verifiedName, longLived.ExpiresAt, cancellationToken);
+        return ToDto(account);
+    }
+
+    public async Task<WhatsAppAccountDto> UpdateAccountAsync(string companyId, string actorUserId, string id, UpdateWhatsAppAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        var account = await db.WhatsAppAccounts.SingleOrDefaultAsync(a => a.Id == id && a.CompanyId == companyId, cancellationToken)
+            ?? throw new NotFoundException("WhatsApp account not found");
+
+        if (request.VerifiedName is not null) account.VerifiedName = request.VerifiedName;
+        if (request.IsActive is not null) account.IsActive = request.IsActive.Value;
+        account.UpdatedAt = DateTime.UtcNow;
+
+        auditLog.Log(companyId, actorUserId, "whatsapp_account.updated", "WhatsAppAccount", id, new { request.VerifiedName, request.IsActive });
+        await db.SaveChangesAsync(cancellationToken);
+        return ToDto(account);
+    }
+
+    // Soft-delete (IsActive = false) rather than a hard delete - IsActive already exists on
+    // WhatsAppAccount and is exactly this "disconnected" flag (WhatsAppTokenRefreshService and
+    // SendAsync both already skip inactive accounts), so no new column is needed and historical
+    // Communications rows sent through this account keep resolving.
+    public async Task RemoveAccountAsync(string companyId, string actorUserId, string id, CancellationToken cancellationToken = default)
+    {
+        var account = await db.WhatsAppAccounts.SingleOrDefaultAsync(a => a.Id == id && a.CompanyId == companyId, cancellationToken)
+            ?? throw new NotFoundException("WhatsApp account not found");
+
+        account.IsActive = false;
+        account.UpdatedAt = DateTime.UtcNow;
+
+        auditLog.Log(companyId, actorUserId, "whatsapp_account.disconnected", "WhatsAppAccount", id, new { account.PhoneNumberId });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<WhatsAppAccount> UpsertAccountAsync(
+        string companyId, string phoneNumberId, string wabaId, string accessToken, string? verifiedName, DateTime? tokenExpiresAt, CancellationToken cancellationToken)
+    {
         var account = await db.WhatsAppAccounts
-            .SingleOrDefaultAsync(a => a.CompanyId == companyId && a.PhoneNumberId == request.PhoneNumberId, cancellationToken);
+            .SingleOrDefaultAsync(a => a.CompanyId == companyId && a.PhoneNumberId == phoneNumberId, cancellationToken);
 
         if (account is null)
         {
-            account = new WhatsAppAccount { CompanyId = companyId, PhoneNumberId = request.PhoneNumberId };
+            account = new WhatsAppAccount { CompanyId = companyId, PhoneNumberId = phoneNumberId };
             db.WhatsAppAccounts.Add(account);
         }
 
-        account.WabaId = request.WabaId;
-        account.EncryptedAccessToken = tokenCipher.Encrypt(request.AccessToken);
-        account.VerifiedName = request.VerifiedName;
+        account.WabaId = wabaId;
+        account.EncryptedAccessToken = tokenCipher.Encrypt(accessToken);
+        account.VerifiedName = verifiedName ?? account.VerifiedName;
+        account.TokenExpiresAt = tokenExpiresAt;
+        account.IsActive = true;
+        account.UpdatedAt = DateTime.UtcNow;
+
+        try
+        {
+            await client.SubscribeWebhookAsync(accessToken, wabaId, cancellationToken);
+        }
+        catch (ExternalServiceException ex)
+        {
+            // Same reasoning as InstagramService.UpsertAccountAsync - don't let a Meta-side
+            // subscription failure block saving an otherwise-valid account.
+            logger.LogWarning(ex, "WhatsApp webhook subscription failed for WABA {WabaId}; account will still be saved", wabaId);
+        }
 
         try
         {
@@ -42,21 +121,23 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
             throw new ConflictException("This WhatsApp phone number is already connected to another account.");
         }
 
-        return ToDto(account);
+        return account;
     }
 
     public async Task SendAsync(string companyId, SendWhatsAppRequest request, CancellationToken cancellationToken = default)
     {
-        var contact = await db.Contacts.SingleOrDefaultAsync(c => c.Id == request.ContactId, cancellationToken)
+        var contact = await db.Contacts.SingleOrDefaultAsync(c => c.Id == request.ContactId && c.CompanyId == companyId, cancellationToken)
             ?? throw new NotFoundException("Contact not found");
 
         if (string.IsNullOrWhiteSpace(contact.Phone))
         {
-            throw new ConflictException("Contact has no phone number");
+            throw new BadRequestException("Contact has no phone number");
         }
 
-        var account = await db.WhatsAppAccounts.Where(a => a.CompanyId == companyId).OrderByDescending(a => a.CreatedAt).FirstOrDefaultAsync(cancellationToken)
-            ?? throw new ConflictException("No WhatsApp account connected");
+        var to = WhatsAppPhoneNumberNormalizer.NormalizeForWhatsApp(contact.Phone);
+
+        var account = await db.WhatsAppAccounts.Where(a => a.CompanyId == companyId && a.IsActive).OrderByDescending(a => a.CreatedAt).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new BadRequestException("No WhatsApp account connected. Connect WhatsApp Business in Settings first");
 
         var accessToken = tokenCipher.Decrypt(account.EncryptedAccessToken);
 
@@ -72,19 +153,28 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
 
         try
         {
-            await client.SendTextMessageAsync(account.PhoneNumberId, accessToken, contact.Phone, request.Message, cancellationToken);
+            var messageId = await client.SendTextMessageAsync(account.PhoneNumberId, accessToken, to, request.Message, cancellationToken);
             communication.Status = CommunicationStatus.Sent;
+            communication.ProviderMessageId = messageId;
+            logger.LogInformation(
+                "WhatsApp send succeeded: contactId={ContactId} to={To} messageId={MessageId}",
+                contact.Id, MaskPhone(to), messageId);
         }
         catch (Exception ex)
         {
             communication.Status = CommunicationStatus.Failed;
             db.Communications.Add(communication);
             await db.SaveChangesAsync(cancellationToken);
-            throw new ExternalServiceException($"Failed to send WhatsApp message: {ex.Message}");
+            await notifier.NotifyNewCommunicationAsync(companyId, contact.BranchId, CommunicationDtoMapper.ToDto(communication, contact), cancellationToken);
+            logger.LogInformation(ex, "WhatsApp send failed: contactId={ContactId} to={To}", contact.Id, MaskPhone(to));
+            throw ex is ExternalServiceException ese
+                ? ExternalSendErrorMapper.Map("WhatsApp", ese)
+                : new ExternalServiceException($"Failed to send WhatsApp message: {ex.Message}");
         }
 
         db.Communications.Add(communication);
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.NotifyNewCommunicationAsync(companyId, contact.BranchId, CommunicationDtoMapper.ToDto(communication, contact), cancellationToken);
     }
 
     public async Task ProcessIncomingMessageAsync(IncomingWhatsAppMessage message, CancellationToken cancellationToken = default)
@@ -108,7 +198,7 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
             db.Contacts.Add(contact);
         }
 
-        db.Communications.Add(new Communication
+        var communication = new Communication
         {
             CompanyId = account.CompanyId,
             ContactId = contact.Id,
@@ -118,10 +208,84 @@ public class WhatsAppService(IAppDbContext db, IWhatsAppClient client, ITokenCip
             ProviderMessageId = message.ProviderMessageId,
             Status = CommunicationStatus.Received,
             Timestamp = message.Timestamp,
-        });
+        };
+        db.Communications.Add(communication);
 
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.NotifyNewCommunicationAsync(account.CompanyId, contact.BranchId, CommunicationDtoMapper.ToDto(communication, contact), cancellationToken);
+
+        if (contact.OwnerId is not null)
+        {
+            var contactName = $"{contact.FirstName} {contact.LastName}".Trim();
+            await notifications.NotifyAsync(account.CompanyId, contact.OwnerId, NotificationType.NewMessage,
+                "New WhatsApp message", $"{contactName}: {InboundMessagePreview.Truncate(message.Text)}", "Contact", contact.Id, cancellationToken);
+        }
     }
 
-    private static WhatsAppAccountDto ToDto(WhatsAppAccount a) => new(a.Id, a.CompanyId, a.PhoneNumberId, a.WabaId, a.VerifiedName, a.CreatedAt);
+    public async Task<WhatsAppSendResult> SendPlatformTextMessageAsync(string actorUserId, SendPlatformWhatsAppTextRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsurePlatformAdminAsync(actorUserId, cancellationToken);
+        var to = WhatsAppPhoneNumberNormalizer.NormalizeForWhatsApp(request.To);
+
+        try
+        {
+            var messageId = await client.SendPlatformTextMessageAsync(to, request.Message, cancellationToken);
+            logger.LogInformation("Platform WhatsApp text send succeeded: to={To} messageId={MessageId}", MaskPhone(to), messageId);
+            return new WhatsAppSendResult(true, messageId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation(ex, "Platform WhatsApp text send failed: to={To}", MaskPhone(to));
+            throw ex is ExternalServiceException ese
+                ? ExternalSendErrorMapper.Map("WhatsApp", ese)
+                : new ExternalServiceException($"Failed to send WhatsApp message: {ex.Message}");
+        }
+    }
+
+    public async Task<WhatsAppSendResult> SendPlatformTemplateMessageAsync(string actorUserId, SendPlatformWhatsAppTemplateRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsurePlatformAdminAsync(actorUserId, cancellationToken);
+        var to = WhatsAppPhoneNumberNormalizer.NormalizeForWhatsApp(request.To);
+
+        try
+        {
+            var messageId = await client.SendPlatformTemplateMessageAsync(to, request.TemplateName, request.LanguageCode, cancellationToken);
+            logger.LogInformation("Platform WhatsApp template send succeeded: to={To} template={TemplateName} messageId={MessageId}", MaskPhone(to), request.TemplateName, messageId);
+            return new WhatsAppSendResult(true, messageId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation(ex, "Platform WhatsApp template send failed: to={To} template={TemplateName}", MaskPhone(to), request.TemplateName);
+            throw ex is ExternalServiceException ese
+                ? ExternalSendErrorMapper.Map("WhatsApp", ese)
+                : new ExternalServiceException($"Failed to send WhatsApp message: {ex.Message}");
+        }
+    }
+
+    // Keeps the country code and last 2 digits visible for debugging, masks the rest - phone
+    // numbers are PII and Information-level logs are not access-restricted like the audit log.
+    private static string MaskPhone(string phone)
+    {
+        if (string.IsNullOrEmpty(phone) || phone.Length <= 5)
+        {
+            return "***";
+        }
+
+        return $"{phone[..3]}***{phone[^2..]}";
+    }
+
+    // Looked up fresh from the DB rather than carried on the JWT/ICurrentUserContext - same
+    // reasoning and pattern as SubscriptionPlanService.EnsurePlatformAdminAsync. Platform-mode
+    // sends use the platform's own WhatsApp number, not a tenant's, so tenant RBAC roles
+    // (even Owner/Admin) are not sufficient on their own.
+    private async Task EnsurePlatformAdminAsync(string actorUserId, CancellationToken cancellationToken)
+    {
+        var isPlatformAdmin = await db.Users.Where(u => u.Id == actorUserId).Select(u => u.IsPlatformAdmin).SingleOrDefaultAsync(cancellationToken);
+        if (!isPlatformAdmin)
+        {
+            throw new ForbiddenException("Only platform admins can send platform-mode WhatsApp messages");
+        }
+    }
+
+    private static WhatsAppAccountDto ToDto(WhatsAppAccount a) => new(a.Id, a.CompanyId, a.PhoneNumberId, a.WabaId, a.VerifiedName, a.IsActive, a.TokenExpiresAt, a.CreatedAt);
 }
