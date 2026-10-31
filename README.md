@@ -1,0 +1,64 @@
+# Business OS - backend
+
+Multi-tenant B2B CRM API (.NET 10, EF Core, PostgreSQL). Solution: `apps/api/BusinessOS.sln`
+(Domain, Application, Infrastructure, WebApi, Tests).
+
+## Configuration and secrets
+
+**No secret is committed.** `apps/api/WebApi/appsettings.json` only holds non-secret defaults and
+empty placeholders. Real values come from:
+
+| Where | Used for |
+|---|---|
+| `dotnet user-secrets` | Local development |
+| Environment variables | Production / CI |
+
+The app refuses to start (`Invalid configuration: ...`) when a required key is missing.
+
+### Local setup
+
+```powershell
+cd apps/api/WebApi
+# Set keys one by one (see user-secrets.example.json for the full list):
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Port=5432;Database=project-db;User Id=postgres;Password=..."
+dotnet user-secrets set "JWT_ACCESS_SECRET" "<64 hex chars>"
+dotnet user-secrets set "JWT_REFRESH_SECRET" "<64 hex chars>"
+dotnet user-secrets set "ENCRYPTION_KEY" "<64 hex chars>"
+dotnet user-secrets set "PUBLIC_URL" "https://<your-public-https-domain>"
+dotnet user-secrets set "GOOGLE_CLIENT_ID" "..."
+dotnet user-secrets set "GOOGLE_CLIENT_SECRET" "..."
+dotnet user-secrets list      # check what is set
+```
+
+Generate a random 64-hex value: `openssl rand -hex 32`.
+
+### Required at startup
+
+`ConnectionStrings:DefaultConnection`, `JWT_ACCESS_SECRET` (>= 32 chars), `JWT_REFRESH_SECRET` (>= 32),
+`ENCRYPTION_KEY` (>= 32), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_URL`.
+
+### Optional integrations
+
+Instagram (`INSTAGRAM_*`), WhatsApp (`WHATSAPP_*`), Microsoft (`MICROSOFT_*`), Gemini (`GEMINI_API_KEY`),
+S3 (`AWS_*`), SMTP (`EmailSettings:*`). The full list with comments is in
+`apps/api/WebApi/user-secrets.example.json` and `.env.example`.
+
+### Production
+
+Set the same keys as environment variables. Nested keys use a double underscore:
+`ConnectionStrings__DefaultConnection`, `EmailSettings__Credentials__Password`.
+`ASPNETCORE_ENVIRONMENT=Production` selects S3 file storage instead of local disk.
+
+### Warning: `ENCRYPTION_KEY`
+
+It encrypts the stored Instagram/WhatsApp access tokens. Changing it makes existing tokens
+undecryptable; affected accounts must reconnect.
+
+## Run
+
+```powershell
+cd apps/api
+dotnet ef database update --project Infrastructure --startup-project WebApi
+dotnet run --project WebApi        # http://localhost:5129, Swagger at /docs
+dotnet test Tests
+```
