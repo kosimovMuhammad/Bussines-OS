@@ -10,6 +10,7 @@ public class AiQueryResult : ITenantScoped
     public Company Company { get; set; } = null!;
     public string Question { get; set; } = string.Empty;
     public QueryIntent? Intent { get; set; }
+    public AiResultType ResultType { get; set; } = AiResultType.Text;
     public AiJobStatus Status { get; set; } = AiJobStatus.Pending;
     public string? ResultRowsJson { get; set; }
     public string? Answer { get; set; }

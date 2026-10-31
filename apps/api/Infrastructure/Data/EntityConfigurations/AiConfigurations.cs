@@ -1,4 +1,5 @@
 using BusinessOS.Domain.Entities;
+using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,6 +17,7 @@ public class AiQueryResultConfiguration : IEntityTypeConfiguration<AiQueryResult
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(r => r.ResultRowsJson).HasColumnName("resultRows").HasColumnType("jsonb");
+        builder.Property(r => r.ResultType).HasDefaultValue(AiResultType.Text);
 
         builder.HasIndex(r => r.CompanyId);
     }
@@ -58,6 +60,11 @@ public class AiQuotationConfiguration : IEntityTypeConfiguration<AiQuotation>
             .HasForeignKey(q => q.DealId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne(q => q.RequestedByUser)
+            .WithMany()
+            .HasForeignKey(q => q.RequestedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasOne(q => q.FileAsset)
             .WithOne(f => f.AiQuotation)
             .HasForeignKey<AiQuotation>(q => q.FileAssetId)
@@ -68,5 +75,70 @@ public class AiQuotationConfiguration : IEntityTypeConfiguration<AiQuotation>
 
         builder.HasIndex(q => q.CompanyId);
         builder.HasIndex(q => q.DealId);
+    }
+}
+
+public class AiUsageLogConfiguration : IEntityTypeConfiguration<AiUsageLog>
+{
+    public void Configure(EntityTypeBuilder<AiUsageLog> builder)
+    {
+        builder.ToTable("ai_usage_logs");
+
+        builder.HasOne(l => l.Company)
+            .WithMany(c => c.AiUsageLogs)
+            .HasForeignKey(l => l.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(l => l.User)
+            .WithMany(u => u.AiUsageLogs)
+            .HasForeignKey(l => l.UserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Property(l => l.Cost).HasColumnType("numeric");
+
+        builder.HasIndex(l => new { l.CompanyId, l.CreatedAt });
+        builder.HasIndex(l => l.UserId);
+    }
+}
+
+public class AiAssistantConversationConfiguration : IEntityTypeConfiguration<AiAssistantConversation>
+{
+    public void Configure(EntityTypeBuilder<AiAssistantConversation> builder)
+    {
+        builder.ToTable("ai_assistant_conversations");
+
+        builder.HasOne(c => c.Company)
+            .WithMany(co => co.AiAssistantConversations)
+            .HasForeignKey(c => c.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(c => c.User)
+            .WithMany(u => u.AiAssistantConversations)
+            .HasForeignKey(c => c.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(c => c.CompanyId);
+        builder.HasIndex(c => c.UserId);
+    }
+}
+
+public class AiAssistantMessageConfiguration : IEntityTypeConfiguration<AiAssistantMessage>
+{
+    public void Configure(EntityTypeBuilder<AiAssistantMessage> builder)
+    {
+        builder.ToTable("ai_assistant_messages");
+
+        builder.HasOne(m => m.Company)
+            .WithMany()
+            .HasForeignKey(m => m.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(m => m.Conversation)
+            .WithMany(c => c.Messages)
+            .HasForeignKey(m => m.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(m => m.ConversationId);
+        builder.HasIndex(m => m.CompanyId);
     }
 }

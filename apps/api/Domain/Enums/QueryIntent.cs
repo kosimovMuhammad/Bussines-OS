@@ -5,4 +5,5 @@ public enum QueryIntent
     StaleContacts,
     TopSalesperson,
     RevenueByPeriod,
+    Unknown,
 }

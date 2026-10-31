@@ -3,7 +3,7 @@ using BusinessOS.Domain.Enums;
 
 namespace BusinessOS.Domain.Entities;
 
-public class Communication : ITenantScoped
+public class Communication : IContactBranchScoped
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string CompanyId { get; set; } = string.Empty;

@@ -15,6 +15,8 @@ public class TaskItem : IActivityLoggable, IArchivable
     public string? AssignedTo { get; set; }
     public User? Assignee { get; set; }
     public DateTime? DueDate { get; set; }
+    public DateTime? LastDueNotifiedAt { get; set; }
+    public DateTime? LastOverdueNotifiedAt { get; set; }
     public string? DealId { get; set; }
     public Deal? Deal { get; set; }
     public string? ContactId { get; set; }

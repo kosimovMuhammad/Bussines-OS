@@ -72,6 +72,89 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.ToTable("activity_logs", (string)null);
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiAssistantConversation", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ai_assistant_conversations", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiAssistantMessage", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<string>("ConversationId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("conversationId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasColumnName("errorMessage");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer")
+                        .HasColumnName("role");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ConversationId");
+
+                    b.ToTable("ai_assistant_messages", (string)null);
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.AiEmailDraft", b =>
                 {
                     b.Property<string>("Id")
@@ -165,6 +248,12 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("resultRows");
 
+                    b.Property<int>("ResultType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("resultType");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
@@ -213,6 +302,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("items");
 
+                    b.Property<string>("RequestedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("requestedByUserId");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
@@ -229,6 +322,8 @@ namespace BusinessOS.Infrastructure.Migrations
 
                     b.HasIndex("FileAssetId")
                         .IsUnique();
+
+                    b.HasIndex("RequestedByUserId");
 
                     b.ToTable("ai_quotations", (string)null);
                 });
@@ -271,6 +366,51 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ai_summaries", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiUsageLog", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<decimal>("Cost")
+                        .HasColumnType("numeric")
+                        .HasColumnName("cost");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("endpoint");
+
+                    b.Property<int>("RequestCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("requestCount");
+
+                    b.Property<int?>("TokensUsed")
+                        .HasColumnType("integer")
+                        .HasColumnName("tokensUsed");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("userId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CompanyId", "CreatedAt");
+
+                    b.ToTable("ai_usage_logs", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.ApiKey", b =>
@@ -721,6 +861,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<string>("BranchId")
+                        .HasColumnType("text")
+                        .HasColumnName("branchId");
+
                     b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -777,6 +921,8 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnName("updatedAt");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
 
                     b.HasIndex("CompanyId");
 
@@ -1204,6 +1350,108 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("file_versions", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.InstagramAccount", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("EncryptedAccessToken")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("encryptedAccessToken");
+
+                    b.Property<string>("InstagramBusinessAccountId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("instagramBusinessAccountId");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<DateTime?>("TokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tokenExpiresAt");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("InstagramBusinessAccountId")
+                        .IsUnique();
+
+                    b.ToTable("instagram_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.InstagramConversationLink", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("ContactId")
+                        .HasColumnType("text")
+                        .HasColumnName("contactId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("InstagramScopedId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("instagramScopedId");
+
+                    b.Property<string>("InstagramUsername")
+                        .HasColumnType("text")
+                        .HasColumnName("instagramUsername");
+
+                    b.Property<string>("LastMessagePreview")
+                        .HasColumnType("text")
+                        .HasColumnName("lastMessagePreview");
+
+                    b.Property<int>("LinkMethod")
+                        .HasColumnType("integer")
+                        .HasColumnName("linkMethod");
+
+                    b.Property<DateTime?>("LinkedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("linkedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("CompanyId", "InstagramScopedId")
+                        .IsUnique();
+
+                    b.ToTable("instagram_conversation_links", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Inventory", b =>
@@ -2468,6 +2716,14 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("isArchived");
 
+                    b.Property<DateTime?>("LastDueNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lastDueNotifiedAt");
+
+                    b.Property<DateTime?>("LastOverdueNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lastOverdueNotifiedAt");
+
                     b.Property<int>("Priority")
                         .HasColumnType("integer")
                         .HasColumnName("priority");
@@ -2571,6 +2827,122 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("team_members", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.TelegramAccount", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BotUsername")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("botUsername");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("EncryptedBotToken")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("encryptedBotToken");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
+
+                    b.Property<string>("WebhookSecret")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("webhookSecret");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BotUsername")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("WebhookSecret")
+                        .IsUnique();
+
+                    b.ToTable("telegram_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.TelegramChatLink", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<long>("ChatId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("chatId");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("companyId");
+
+                    b.Property<string>("ContactId")
+                        .HasColumnType("text")
+                        .HasColumnName("contactId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<string>("LastMessagePreview")
+                        .HasColumnType("text")
+                        .HasColumnName("lastMessagePreview");
+
+                    b.Property<int>("LinkMethod")
+                        .HasColumnType("integer")
+                        .HasColumnName("linkMethod");
+
+                    b.Property<DateTime?>("LinkedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("linkedAt");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("text")
+                        .HasColumnName("phoneNumber");
+
+                    b.Property<string>("TelegramFirstName")
+                        .HasColumnType("text")
+                        .HasColumnName("telegramFirstName");
+
+                    b.Property<string>("TelegramLastName")
+                        .HasColumnType("text")
+                        .HasColumnName("telegramLastName");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("telegramUserId");
+
+                    b.Property<string>("TelegramUsername")
+                        .HasColumnType("text")
+                        .HasColumnName("telegramUsername");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("CompanyId", "ChatId")
+                        .IsUnique();
+
+                    b.ToTable("telegram_chat_links", (string)null);
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Template", b =>
@@ -2733,6 +3105,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("companyId");
 
+                    b.Property<string>("CoverUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("coverUrl");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("createdAt");
@@ -2778,6 +3154,18 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text")
                         .HasColumnName("passwordHash");
+
+                    b.Property<string>("PendingEmail")
+                        .HasColumnType("text")
+                        .HasColumnName("pendingEmail");
+
+                    b.Property<DateTime?>("PendingEmailCodeExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pendingEmailCodeExpiresAt");
+
+                    b.Property<string>("PendingEmailCodeHash")
+                        .HasColumnType("text")
+                        .HasColumnName("pendingEmailCodeHash");
 
                     b.Property<string>("RbacRoleId")
                         .HasColumnType("text")
@@ -2969,10 +3357,22 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("encryptedAccessToken");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isActive");
+
                     b.Property<string>("PhoneNumberId")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("phoneNumberId");
+
+                    b.Property<DateTime?>("TokenExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tokenExpiresAt");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updatedAt");
 
                     b.Property<string>("VerifiedName")
                         .HasColumnType("text")
@@ -3288,6 +3688,44 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiAssistantConversation", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("AiAssistantConversations")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany("AiAssistantConversations")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiAssistantMessage", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.AiAssistantConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.AiEmailDraft", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -3337,11 +3775,18 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasForeignKey("BusinessOS.Domain.Entities.AiQuotation", "FileAssetId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("BusinessOS.Domain.Entities.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Company");
 
                     b.Navigation("Deal");
 
                     b.Navigation("FileAsset");
+
+                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.AiSummary", b =>
@@ -3353,6 +3798,24 @@ namespace BusinessOS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Communication");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiUsageLog", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("AiUsageLogs")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.User", "User")
+                        .WithMany("AiUsageLogs")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.ApiKey", b =>
@@ -3470,6 +3933,11 @@ namespace BusinessOS.Infrastructure.Migrations
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Contact", b =>
                 {
+                    b.HasOne("BusinessOS.Domain.Entities.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
                         .WithMany("Contacts")
                         .HasForeignKey("CompanyId")
@@ -3480,6 +3948,8 @@ namespace BusinessOS.Infrastructure.Migrations
                         .WithMany("OwnedContacts")
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Branch");
 
                     b.Navigation("Company");
 
@@ -3674,6 +4144,35 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("FileAsset");
 
                     b.Navigation("UploadedBy");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.InstagramAccount", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("InstagramAccounts")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.InstagramConversationLink", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Contact", "Contact")
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Contact");
                 });
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.Inventory", b =>
@@ -4172,6 +4671,35 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.TelegramAccount", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany("TelegramAccounts")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("BusinessOS.Domain.Entities.TelegramChatLink", b =>
+                {
+                    b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BusinessOS.Domain.Entities.Contact", "Contact")
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Contact");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Template", b =>
                 {
                     b.HasOne("BusinessOS.Domain.Entities.Company", "Company")
@@ -4441,6 +4969,11 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Workflow");
                 });
 
+            modelBuilder.Entity("BusinessOS.Domain.Entities.AiAssistantConversation", b =>
+                {
+                    b.Navigation("Messages");
+                });
+
             modelBuilder.Entity("BusinessOS.Domain.Entities.Category", b =>
                 {
                     b.Navigation("Products");
@@ -4457,11 +4990,15 @@ namespace BusinessOS.Infrastructure.Migrations
                 {
                     b.Navigation("ActivityLogs");
 
+                    b.Navigation("AiAssistantConversations");
+
                     b.Navigation("AiEmailDrafts");
 
                     b.Navigation("AiQueryResults");
 
                     b.Navigation("AiQuotations");
+
+                    b.Navigation("AiUsageLogs");
 
                     b.Navigation("AuditLogs");
 
@@ -4474,6 +5011,8 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Deals");
 
                     b.Navigation("Files");
+
+                    b.Navigation("InstagramAccounts");
 
                     b.Navigation("Invoices");
 
@@ -4488,6 +5027,8 @@ namespace BusinessOS.Infrastructure.Migrations
                     b.Navigation("Roles");
 
                     b.Navigation("Tasks");
+
+                    b.Navigation("TelegramAccounts");
 
                     b.Navigation("TimeEntries");
 
@@ -4606,6 +5147,10 @@ namespace BusinessOS.Infrastructure.Migrations
 
             modelBuilder.Entity("BusinessOS.Domain.Entities.User", b =>
                 {
+                    b.Navigation("AiAssistantConversations");
+
+                    b.Navigation("AiUsageLogs");
+
                     b.Navigation("AssignedTasks");
 
                     b.Navigation("AuditLogs");

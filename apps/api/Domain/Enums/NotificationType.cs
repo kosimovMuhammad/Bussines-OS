@@ -12,4 +12,5 @@ public enum NotificationType
     InviteAccepted,
     RoleChanged,
     DealStageChanged,
+    NewMessage,
 }

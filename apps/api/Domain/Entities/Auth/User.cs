@@ -17,6 +17,7 @@ public class User : ITenantScoped
     public string? RbacRoleId { get; set; }
     public RbacRole? RbacRole { get; set; }
     public string? AvatarUrl { get; set; }
+    public string? CoverUrl { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Active;
     public DateTime? LastLoginAt { get; set; }
 
@@ -41,6 +42,12 @@ public class User : ITenantScoped
     public string? EmailVerificationCodeHash { get; set; }
     public DateTime? EmailVerificationCodeExpiresAt { get; set; }
 
+    // Self-service email change: the new address isn't applied to Email until the code sent
+    // to it is confirmed, so the (still-unique) login identifier never goes stale mid-flow.
+    public string? PendingEmail { get; set; }
+    public string? PendingEmailCodeHash { get; set; }
+    public DateTime? PendingEmailCodeExpiresAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
@@ -57,4 +64,6 @@ public class User : ITenantScoped
     public ICollection<LoginHistory> LoginHistories { get; set; } = new List<LoginHistory>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<User> DirectReports { get; set; } = new List<User>();
+    public ICollection<AiUsageLog> AiUsageLogs { get; set; } = new List<AiUsageLog>();
+    public ICollection<AiAssistantConversation> AiAssistantConversations { get; set; } = new List<AiAssistantConversation>();
 }

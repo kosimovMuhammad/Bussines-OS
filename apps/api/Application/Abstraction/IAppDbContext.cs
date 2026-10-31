@@ -29,6 +29,10 @@ public interface IAppDbContext
     DbSet<AiSummary> AiSummaries { get; }
     DbSet<OAuthConnection> OAuthConnections { get; }
     DbSet<WhatsAppAccount> WhatsAppAccounts { get; }
+    DbSet<TelegramAccount> TelegramAccounts { get; }
+    DbSet<TelegramChatLink> TelegramChatLinks { get; }
+    DbSet<InstagramAccount> InstagramAccounts { get; }
+    DbSet<InstagramConversationLink> InstagramConversationLinks { get; }
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<Invoice> Invoices { get; }
     DbSet<Payment> Payments { get; }
@@ -37,6 +41,9 @@ public interface IAppDbContext
     DbSet<AiQueryResult> AiQueryResults { get; }
     DbSet<AiEmailDraft> AiEmailDrafts { get; }
     DbSet<AiQuotation> AiQuotations { get; }
+    DbSet<AiUsageLog> AiUsageLogs { get; }
+    DbSet<AiAssistantConversation> AiAssistantConversations { get; }
+    DbSet<AiAssistantMessage> AiAssistantMessages { get; }
     DbSet<CalendarSyncToken> CalendarSyncTokens { get; }
     DbSet<RbacRole> Roles { get; }
     DbSet<Permission> Permissions { get; }

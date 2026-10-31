@@ -10,6 +10,8 @@ public class AiQuotation : ITenantScoped
     public Company Company { get; set; } = null!;
     public string DealId { get; set; } = string.Empty;
     public Deal Deal { get; set; } = null!;
+    public string? RequestedByUserId { get; set; }
+    public User? RequestedByUser { get; set; }
     public string ItemsJson { get; set; } = string.Empty;
     public decimal? TotalAmount { get; set; }
     public AiJobStatus Status { get; set; } = AiJobStatus.Pending;

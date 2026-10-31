@@ -6,4 +6,6 @@ public enum CommunicationChannel
     Email,
     ManualNote,
     PhoneCall,
+    Telegram,
+    Instagram,
 }

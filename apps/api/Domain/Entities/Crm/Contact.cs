@@ -2,11 +2,15 @@ using BusinessOS.Domain.Interfaces;
 
 namespace BusinessOS.Domain.Entities;
 
-public class Contact : IActivityLoggable, IArchivable
+public class Contact : IActivityLoggable, IArchivable, IBranchScoped
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string CompanyId { get; set; } = string.Empty;
     public Company Company { get; set; } = null!;
+    // Null = not assigned to a branch - visible to every branch admin until claimed (see
+    // DataContext's branch query filter). Only Role.Owner can assign/reassign this.
+    public string? BranchId { get; set; }
+    public Branch? Branch { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string? LastName { get; set; }
     public string? Email { get; set; }

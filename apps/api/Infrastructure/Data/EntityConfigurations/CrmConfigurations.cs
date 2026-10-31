@@ -20,9 +20,15 @@ public class ContactConfiguration : IEntityTypeConfiguration<Contact>
             .HasForeignKey(c => c.OwnerId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(c => c.Branch)
+            .WithMany()
+            .HasForeignKey(c => c.BranchId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(c => c.CompanyId);
         builder.HasIndex(c => c.Phone);
         builder.HasIndex(c => c.Email);
+        builder.HasIndex(c => c.BranchId);
     }
 }
 

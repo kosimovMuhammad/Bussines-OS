@@ -39,6 +39,92 @@ public class WhatsAppAccountConfiguration : IEntityTypeConfiguration<WhatsAppAcc
     }
 }
 
+public class TelegramAccountConfiguration : IEntityTypeConfiguration<TelegramAccount>
+{
+    public void Configure(EntityTypeBuilder<TelegramAccount> builder)
+    {
+        builder.ToTable("telegram_accounts");
+
+        builder.HasOne(t => t.Company)
+            .WithMany(c => c.TelegramAccounts)
+            .HasForeignKey(t => t.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(t => t.CompanyId);
+        builder.HasIndex(t => t.WebhookSecret).IsUnique();
+
+        // A Telegram bot username is globally unique on Telegram's side - same reasoning as
+        // WhatsAppAccount.PhoneNumberId, so two companies can never both "own" the same bot.
+        builder.HasIndex(t => t.BotUsername).IsUnique();
+    }
+}
+
+public class TelegramChatLinkConfiguration : IEntityTypeConfiguration<TelegramChatLink>
+{
+    public void Configure(EntityTypeBuilder<TelegramChatLink> builder)
+    {
+        builder.ToTable("telegram_chat_links");
+
+        builder.HasOne(t => t.Company)
+            .WithMany()
+            .HasForeignKey(t => t.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // SetNull, not Cascade - unlinking/deleting a Contact should not destroy the chat's
+        // Telegram identity/history, same reasoning as Webhook->WebhookDeliveryLog.
+        builder.HasOne(t => t.Contact)
+            .WithMany()
+            .HasForeignKey(t => t.ContactId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(t => new { t.CompanyId, t.ChatId }).IsUnique();
+        builder.HasIndex(t => t.ContactId);
+    }
+}
+
+public class InstagramAccountConfiguration : IEntityTypeConfiguration<InstagramAccount>
+{
+    public void Configure(EntityTypeBuilder<InstagramAccount> builder)
+    {
+        builder.ToTable("instagram_accounts");
+
+        builder.HasOne(i => i.Company)
+            .WithMany(c => c.InstagramAccounts)
+            .HasForeignKey(i => i.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(i => i.CompanyId);
+
+        // An Instagram Business Account ID is globally unique on Meta's side - same reasoning
+        // as WhatsAppAccount.PhoneNumberId and TelegramAccount.BotUsername, so two companies
+        // can never both "own" the same Instagram account.
+        builder.HasIndex(i => i.InstagramBusinessAccountId).IsUnique();
+    }
+}
+
+public class InstagramConversationLinkConfiguration : IEntityTypeConfiguration<InstagramConversationLink>
+{
+    public void Configure(EntityTypeBuilder<InstagramConversationLink> builder)
+    {
+        builder.ToTable("instagram_conversation_links");
+
+        builder.HasOne(i => i.Company)
+            .WithMany()
+            .HasForeignKey(i => i.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // SetNull, not Cascade - unlinking/deleting a Contact should not destroy the
+        // conversation's Instagram identity/history, same reasoning as TelegramChatLink.Contact.
+        builder.HasOne(i => i.Contact)
+            .WithMany()
+            .HasForeignKey(i => i.ContactId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(i => new { i.CompanyId, i.InstagramScopedId }).IsUnique();
+        builder.HasIndex(i => i.ContactId);
+    }
+}
+
 public class CalendarSyncTokenConfiguration : IEntityTypeConfiguration<CalendarSyncToken>
 {
     public void Configure(EntityTypeBuilder<CalendarSyncToken> builder)
