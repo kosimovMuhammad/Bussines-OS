@@ -3,12 +3,13 @@ using System.Text.Json;
 using BusinessOS.Application.Abstraction;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Infrastructure.Ai;
 
-public class GeminiClient(IHttpClientFactory httpClientFactory, IConfiguration configuration) : IGeminiClient
+public class GeminiClient(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<GeminiClient> logger) : IGeminiClient
 {
-    private const string Model = "gemini-flash-latest";
+    private const string Model = "gemini-3.6-flash";
 
     public async Task<string> GenerateAsync(string prompt, bool jsonMode = false, int maxOutputTokens = 2048, CancellationToken cancellationToken = default)
     {
@@ -32,18 +33,31 @@ public class GeminiClient(IHttpClientFactory httpClientFactory, IConfiguration c
             },
             cancellationToken);
 
+        var rawBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        logger.LogDebug("Gemini raw response ({StatusCode}): {Body}", (int)response.StatusCode, rawBody);
+
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"Gemini API error: {response.StatusCode} {errorBody}");
+            throw new HttpRequestException($"Gemini API error: {response.StatusCode} {rawBody}");
         }
 
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-        return body
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString() ?? string.Empty;
+        var body = JsonSerializer.Deserialize<JsonElement>(rawBody);
+
+        if (!body.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+        {
+            var blockReason = body.TryGetProperty("promptFeedback", out var feedback) && feedback.TryGetProperty("blockReason", out var reason)
+                ? reason.GetString()
+                : "no candidates returned";
+            throw new InvalidOperationException($"Gemini returned no usable response (reason: {blockReason})");
+        }
+
+        var candidate = candidates[0];
+        var finishReason = candidate.TryGetProperty("finishReason", out var fr) ? fr.GetString() : null;
+        if (!candidate.TryGetProperty("content", out var content) || !content.TryGetProperty("parts", out var parts) || parts.GetArrayLength() == 0)
+        {
+            throw new InvalidOperationException($"Gemini returned no content (finishReason: {finishReason ?? "unknown"})");
+        }
+
+        return parts[0].GetProperty("text").GetString() ?? string.Empty;
     }
 }
