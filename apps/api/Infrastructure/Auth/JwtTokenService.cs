@@ -24,14 +24,18 @@ public class JwtTokenService : ITokenService
             ?? throw new InvalidOperationException("JWT_REFRESH_SECRET is not configured");
     }
 
-    public string CreateAccessToken(string userId, string companyId, Role role)
+    public string CreateAccessToken(string userId, string companyId, Role role, string? branchId = null)
     {
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim("sub", userId),
-            new Claim("companyId", companyId),
-            new Claim("role", role.ToString()),
+            new("sub", userId),
+            new("companyId", companyId),
+            new("role", role.ToString()),
         };
+        if (!string.IsNullOrEmpty(branchId))
+        {
+            claims.Add(new Claim("branchId", branchId));
+        }
         return CreateToken(claims, _accessSecret, AccessTokenLifetime);
     }
 

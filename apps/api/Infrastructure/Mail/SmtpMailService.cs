@@ -58,6 +58,28 @@ public class SmtpMailService(IConfiguration configuration, ILogger<SmtpMailServi
         await SendAsync(settings.Value, message, cancellationToken);
     }
 
+    public async Task SendNotificationEmailAsync(string to, string name, string title, string body, CancellationToken cancellationToken = default)
+    {
+        var settings = ReadSettings();
+        if (settings is null)
+        {
+            logger.LogWarning("EmailSettings:Smtp:Host not configured - skipping notification email to {To} ({Title})", to, title);
+            return;
+        }
+
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(settings.Value.FromName, settings.Value.FromEmail));
+        message.To.Add(MailboxAddress.Parse(to));
+        message.Subject = title;
+        message.Body = new TextPart("html")
+        {
+            Text = $"<p>Hi {name},</p>" +
+                   $"<p>{body}</p>",
+        };
+
+        await SendAsync(settings.Value, message, cancellationToken);
+    }
+
     private async Task SendAsync(SmtpSettings settings, MimeMessage message, CancellationToken cancellationToken)
     {
         using var client = new SmtpClient();

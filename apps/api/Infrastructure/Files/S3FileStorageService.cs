@@ -16,10 +16,26 @@ public class S3FileStorageService : IFileStorageService
         var accessKeyId = configuration["AWS_ACCESS_KEY_ID"];
         var secretAccessKey = configuration["AWS_SECRET_ACCESS_KEY"];
         var region = configuration["AWS_REGION"] ?? "us-east-1";
+        var endpointUrl = configuration["AWS_S3_ENDPOINT_URL"];
 
         if (!string.IsNullOrEmpty(_bucket) && !string.IsNullOrEmpty(accessKeyId) && !string.IsNullOrEmpty(secretAccessKey))
         {
-            _client = new AmazonS3Client(accessKeyId, secretAccessKey, Amazon.RegionEndpoint.GetBySystemName(region));
+            if (string.IsNullOrEmpty(endpointUrl))
+            {
+                _client = new AmazonS3Client(accessKeyId, secretAccessKey, Amazon.RegionEndpoint.GetBySystemName(region));
+            }
+            else
+            {
+                // S3-compatible endpoint override for local dev (e.g. MinIO), which requires
+                // path-style bucket addressing instead of AWS's default virtual-hosted style.
+                var config = new AmazonS3Config
+                {
+                    ServiceURL = endpointUrl,
+                    ForcePathStyle = true,
+                    AuthenticationRegion = region,
+                };
+                _client = new AmazonS3Client(accessKeyId, secretAccessKey, config);
+            }
         }
     }
 

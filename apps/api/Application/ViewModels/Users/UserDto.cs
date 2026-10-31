@@ -7,7 +7,9 @@ public record UserDto(
     string Email,
     string Role,
     string? AvatarUrl,
+    string? CoverUrl,
     string Status,
     DateTime? LastLoginAt,
     DateTime CreatedAt,
-    bool HasPassword);
+    bool HasPassword,
+    bool IsPlatformAdmin);

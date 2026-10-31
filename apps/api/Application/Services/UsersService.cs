@@ -3,6 +3,7 @@ using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
 using BusinessOS.Application.Constants;
 using BusinessOS.Application.ViewModels;
+using BusinessOS.Application.ViewModels.Files;
 using BusinessOS.Application.ViewModels.Users;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
@@ -14,6 +15,7 @@ namespace BusinessOS.Application.Services;
 public class UsersService(
     IAppDbContext db,
     IPasswordHasher passwordHasher,
+    IFileStorageService storage,
     IBackgroundTaskQueue backgroundQueue,
     IAuditLogService auditLog,
     INotificationService notifications,
@@ -50,6 +52,18 @@ public class UsersService(
         user.PasswordHash = await passwordHasher.HashAsync(request.NewPassword);
         auditLog.Log(user.CompanyId, userId, "security.password_set", "User", userId);
         await db.SaveChangesAsync(cancellationToken);
+
+        // No InvitedBy tracking exists on User, so there's no single inviter to notify -
+        // every current Owner in the company is told instead.
+        var owners = await db.Users
+            .Where(u => u.CompanyId == user.CompanyId && u.Role == Role.Owner && u.Id != userId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var owner in owners)
+        {
+            await notifications.NotifyAsync(user.CompanyId, owner.Id, NotificationType.InviteAccepted,
+                "Invite accepted", $"{user.Name} accepted their invite and joined", "User", user.Id, cancellationToken);
+        }
     }
 
     public async Task ChangePasswordAsync(string userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
@@ -68,6 +82,152 @@ public class UsersService(
         user.PasswordHash = await passwordHasher.HashAsync(request.NewPassword);
         auditLog.Log(user.CompanyId, userId, "security.password_changed", "User", userId);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<PresignUploadResponse> PresignProfileMediaAsync(string userId, PresignProfileMediaRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await FindByIdAsync(userId, cancellationToken);
+
+        var key = storage.BuildKey(user.CompanyId, request.Filename);
+        string url;
+        try
+        {
+            url = storage.GetPresignedUploadUrl(key, request.MimeType);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExternalServiceException($"File storage is not available: {ex.Message}");
+        }
+
+        return new PresignUploadResponse(url, key);
+    }
+
+    // Writes straight to AvatarUrl/CoverUrl instead of creating a FileAsset - profile media
+    // has no contact/deal/invoice to relate to, and there's no need to list/version it the
+    // way uploaded documents are.
+    public async Task<UserDto> ConfirmProfileMediaAsync(string userId, ConfirmProfileMediaRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await FindByIdAsync(userId, cancellationToken);
+
+        string url;
+        try
+        {
+            url = storage.GetPresignedDownloadUrl(request.S3Key);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExternalServiceException($"File storage is not available: {ex.Message}");
+        }
+
+        if (request.Target == ProfileMediaTarget.Avatar)
+        {
+            user.AvatarUrl = url;
+        }
+        else
+        {
+            user.CoverUrl = url;
+        }
+
+        auditLog.Log(user.CompanyId, userId, request.Target == ProfileMediaTarget.Avatar ? "user.avatar_updated" : "user.cover_updated", "User", userId);
+        await db.SaveChangesAsync(cancellationToken);
+        return AuthDtoMap(user);
+    }
+
+    public async Task<UserDto> RemoveProfileMediaAsync(string userId, ProfileMediaTarget target, CancellationToken cancellationToken = default)
+    {
+        var user = await FindByIdAsync(userId, cancellationToken);
+
+        if (target == ProfileMediaTarget.Avatar)
+        {
+            user.AvatarUrl = null;
+        }
+        else
+        {
+            user.CoverUrl = null;
+        }
+
+        auditLog.Log(user.CompanyId, userId, target == ProfileMediaTarget.Avatar ? "user.avatar_removed" : "user.cover_removed", "User", userId);
+        await db.SaveChangesAsync(cancellationToken);
+        return AuthDtoMap(user);
+    }
+
+    public async Task RequestEmailChangeAsync(string userId, RequestEmailChangeRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await FindByIdAsync(userId, cancellationToken);
+
+        if (string.Equals(user.Email, request.NewEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConflictException("This is already your current email");
+        }
+
+        // Global, not company-scoped - Email is the login identifier and must be unique
+        // across every company, same check InviteAsync/RegisterAsync run.
+        var taken = await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == request.NewEmail, cancellationToken);
+        if (taken)
+        {
+            throw new ConflictException("A user with this email already exists");
+        }
+
+        var code = GenerateVerificationCode();
+        user.PendingEmail = request.NewEmail;
+        user.PendingEmailCodeHash = await passwordHasher.HashAsync(code);
+        user.PendingEmailCodeExpiresAt = DateTime.UtcNow.Add(InviteTokenLifetime);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var newEmail = request.NewEmail;
+        var name = user.Name;
+        await backgroundQueue.QueueAsync(async (sp, ct) =>
+        {
+            var mail = sp.GetRequiredService<IMailService>();
+            await mail.SendVerificationCodeEmailAsync(newEmail, name, code, ct);
+        });
+    }
+
+    public async Task<UserDto> ConfirmEmailChangeAsync(string userId, ConfirmEmailChangeRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await FindByIdAsync(userId, cancellationToken);
+
+        if (user.PendingEmail is null || user.PendingEmailCodeHash is null)
+        {
+            throw new UnauthorizedAppException("Invalid or expired code");
+        }
+
+        if (user.PendingEmailCodeExpiresAt is null || user.PendingEmailCodeExpiresAt < DateTime.UtcNow)
+        {
+            throw new UnauthorizedAppException("Invalid or expired code");
+        }
+
+        if (!await passwordHasher.VerifyAsync(user.PendingEmailCodeHash, request.Code))
+        {
+            throw new UnauthorizedAppException("Invalid or expired code");
+        }
+
+        // Re-check uniqueness at confirm time too - another user could have taken the
+        // address during the window between request and confirm.
+        var taken = await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == user.PendingEmail && u.Id != user.Id, cancellationToken);
+        if (taken)
+        {
+            throw new ConflictException("A user with this email already exists");
+        }
+
+        var previousEmail = user.Email;
+        user.Email = user.PendingEmail;
+        user.PendingEmail = null;
+        user.PendingEmailCodeHash = null;
+        user.PendingEmailCodeExpiresAt = null;
+
+        // Same effect as AuthService.LogoutAllAsync (inlined rather than taking a dependency
+        // on IAuthService from here) - the login identifier just changed, so every existing
+        // session must re-authenticate.
+        var sessions = await db.RefreshTokens.Where(rt => rt.UserId == userId && !rt.Revoked).ToListAsync(cancellationToken);
+        foreach (var session in sessions)
+        {
+            session.Revoked = true;
+        }
+
+        auditLog.Log(user.CompanyId, userId, "security.email_changed", "User", userId, new { from = previousEmail, to = user.Email });
+        await db.SaveChangesAsync(cancellationToken);
+        return AuthDtoMap(user);
     }
 
     public async Task<IReadOnlyList<UserDto>> ListAsync(string companyId, CancellationToken cancellationToken = default)
@@ -148,7 +308,7 @@ public class UsersService(
         }
 
         ApplyUpdate(user, request);
-        auditLog.Log(companyId, actorUserId, "user.updated", "User", id, new { request.Name, request.AvatarUrl, Status = request.Status?.ToString() });
+        auditLog.Log(companyId, actorUserId, "user.updated", "User", id, new { request.Name, request.AvatarUrl, request.CoverUrl, Status = request.Status?.ToString() });
         await db.SaveChangesAsync(cancellationToken);
         return AuthDtoMap(user);
     }
@@ -292,6 +452,11 @@ public class UsersService(
             user.AvatarUrl = request.AvatarUrl;
         }
 
+        if (request.CoverUrl is not null)
+        {
+            user.CoverUrl = request.CoverUrl;
+        }
+
         if (request.Status is not null)
         {
             user.Status = request.Status.Value;
@@ -395,8 +560,10 @@ public class UsersService(
         user.Email,
         user.Role.ToString(),
         user.AvatarUrl,
+        user.CoverUrl,
         user.Status.ToString(),
         user.LastLoginAt,
         user.CreatedAt,
-        user.PasswordHash is not null);
+        user.PasswordHash is not null,
+        user.IsPlatformAdmin);
 }

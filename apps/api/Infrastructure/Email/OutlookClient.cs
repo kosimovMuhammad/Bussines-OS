@@ -1,14 +1,17 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
 using BusinessOS.Application.Abstraction;
+using BusinessOS.Application.Configurations.Exceptions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Infrastructure.Email;
 
-public class OutlookClient(IHttpClientFactory httpClientFactory, IConfiguration configuration) : IOutlookClient
+public class OutlookClient(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<OutlookClient> logger) : IOutlookClient
 {
     private const string Scope = "offline_access Mail.Read Mail.Send";
 
@@ -47,25 +50,62 @@ public class OutlookClient(IHttpClientFactory httpClientFactory, IConfiguration 
         return new OAuthTokenResult(payload.AccessToken, payload.RefreshToken, DateTime.UtcNow.AddSeconds(payload.ExpiresIn));
     }
 
-    public async Task SendEmailAsync(string accessToken, string toEmail, string subject, string body, CancellationToken cancellationToken = default)
+    // Graph's sendMail returns 202 Accepted with an empty body on success - unlike Gmail's
+    // messages.send, there is no message id to hand back.
+    public async Task<string?> SendEmailAsync(string accessToken, string toEmail, string subject, string body, CancellationToken cancellationToken = default)
     {
         var client = httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(10);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await client.PostAsJsonAsync("https://graph.microsoft.com/v1.0/me/sendMail", new
+        HttpResponseMessage response;
+        try
         {
-            message = new
+            response = await client.PostAsJsonAsync("https://graph.microsoft.com/v1.0/me/sendMail", new
             {
-                subject,
-                body = new { contentType = "Text", content = body },
-                toRecipients = new[] { new { emailAddress = new { address = toEmail } } },
-            },
-        }, cancellationToken);
+                message = new
+                {
+                    subject,
+                    body = new { contentType = "Text", content = body },
+                    toRecipients = new[] { new { emailAddress = new { address = toEmail } } },
+                },
+            }, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Outlook API request 'SendEmail' failed to complete");
+            throw new ExternalServiceException("Outlook API request timed out or is unreachable") { IsTimeout = true };
+        }
 
         if (!response.IsSuccessStatusCode)
         {
+            // Never log toEmail/accessToken/body verbatim - body echoes recipient/message context.
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"Outlook send failed: {response.StatusCode} {errorBody}");
+            var errorMessage = ParseGraphError(errorBody);
+            logger.LogWarning("Outlook API rejected SendEmail: status={StatusCode}", (int)response.StatusCode);
+
+            throw new ExternalServiceException(errorMessage ?? $"Outlook API rejected the message: {response.StatusCode}")
+            {
+                ProviderStatusCode = (int)response.StatusCode,
+                RetryAfterSeconds = response.Headers.RetryAfter?.Delta is { } delta ? (int)delta.TotalSeconds : null,
+            };
+        }
+
+        return null;
+    }
+
+    private static string? ParseGraphError(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var m)
+                ? m.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

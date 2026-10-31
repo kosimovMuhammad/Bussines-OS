@@ -21,6 +21,7 @@ public class CompanyController(
     ILimitEnforcementService limitEnforcement,
     IFeatureAccessService featureAccess,
     ISubscriptionInvoiceService invoiceService,
+    IAiUsageService aiUsageService,
     ICurrentUserContext currentUser,
     IValidator<UpdateCompanyRequest> updateCompanyValidator,
     IValidator<UpdatePlanRequest> updatePlanValidator,
@@ -69,6 +70,10 @@ public class CompanyController(
     [HttpGet("features")]
     public async Task<IActionResult> GetFeatures(CancellationToken ct) =>
         Ok(await featureAccess.GetFeatureFlagsAsync(currentUser.CompanyId!, ct));
+
+    [HttpGet("ai-usage")]
+    public async Task<IActionResult> GetAiUsage(CancellationToken ct) =>
+        Ok(await aiUsageService.GetUsageAsync(currentUser.CompanyId!, ct));
 
     [HttpPost("subscription/change-plan")]
     [Authorize]

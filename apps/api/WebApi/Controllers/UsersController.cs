@@ -6,6 +6,7 @@ using BusinessOS.Application.ViewModels.Audit;
 using BusinessOS.Application.ViewModels.Organization;
 using BusinessOS.Application.ViewModels.Rbac;
 using BusinessOS.Application.ViewModels.Users;
+using BusinessOS.Domain.Enums;
 using BusinessOS.WebApi.Authorization;
 using BusinessOS.WebApi.Extensions;
 using FluentValidation;
@@ -28,6 +29,10 @@ public class UsersController(
     IValidator<UpdateRoleRequest> updateRoleValidator,
     IValidator<SetPasswordRequest> setPasswordValidator,
     IValidator<ChangePasswordRequest> changePasswordValidator,
+    IValidator<PresignProfileMediaRequest> presignProfileMediaValidator,
+    IValidator<ConfirmProfileMediaRequest> confirmProfileMediaValidator,
+    IValidator<RequestEmailChangeRequest> requestEmailChangeValidator,
+    IValidator<ConfirmEmailChangeRequest> confirmEmailChangeValidator,
     IValidator<UpdateAssignmentRequest> updateAssignmentValidator,
     IValidator<UpdateUserPermissionsRequest> updateUserPermissionsValidator,
     IValidator<BulkInviteUsersRequest> bulkInviteValidator) : ControllerBase
@@ -70,6 +75,54 @@ public class UsersController(
         await changePasswordValidator.ValidateAndThrowAppAsync(request, ct);
         await usersService.ChangePasswordAsync(currentUser.UserId!, request, ct);
         return Ok(new { success = true });
+    }
+
+    // Dedicated presign/confirm pair for the user's own avatar/cover - cleaner than routing
+    // through /files/presign, which requires a contact/deal/invoice relation this doesn't
+    // have. RequireAction(Read) override for the same reason as UpdateMe above: self-service
+    // profile media must be editable by every authenticated role.
+    [HttpPost("me/media/presign")]
+    [RequireModule(ModuleName.Profile)]
+    [RequireAction(PermissionAction.Read)]
+    public async Task<IActionResult> PresignProfileMedia(PresignProfileMediaRequest request, CancellationToken ct)
+    {
+        await presignProfileMediaValidator.ValidateAndThrowAppAsync(request, ct);
+        return Ok(await usersService.PresignProfileMediaAsync(currentUser.UserId!, request, ct));
+    }
+
+    [HttpPost("me/media/confirm")]
+    [RequireModule(ModuleName.Profile)]
+    [RequireAction(PermissionAction.Read)]
+    public async Task<IActionResult> ConfirmProfileMedia(ConfirmProfileMediaRequest request, CancellationToken ct)
+    {
+        await confirmProfileMediaValidator.ValidateAndThrowAppAsync(request, ct);
+        return Ok(await usersService.ConfirmProfileMediaAsync(currentUser.UserId!, request, ct));
+    }
+
+    [HttpDelete("me/media")]
+    [RequireModule(ModuleName.Profile)]
+    [RequireAction(PermissionAction.Read)]
+    public async Task<IActionResult> RemoveProfileMedia([FromQuery] ProfileMediaTarget target, CancellationToken ct) =>
+        Ok(await usersService.RemoveProfileMediaAsync(currentUser.UserId!, target, ct));
+
+    // RequireAction(Read) override: same reasoning as UpdateMe/set-password/change-password above.
+    [HttpPost("me/request-email-change")]
+    [RequireModule(ModuleName.Profile)]
+    [RequireAction(PermissionAction.Read)]
+    public async Task<IActionResult> RequestEmailChange(RequestEmailChangeRequest request, CancellationToken ct)
+    {
+        await requestEmailChangeValidator.ValidateAndThrowAppAsync(request, ct);
+        await usersService.RequestEmailChangeAsync(currentUser.UserId!, request, ct);
+        return Ok(new { success = true });
+    }
+
+    [HttpPost("me/confirm-email-change")]
+    [RequireModule(ModuleName.Profile)]
+    [RequireAction(PermissionAction.Read)]
+    public async Task<IActionResult> ConfirmEmailChange(ConfirmEmailChangeRequest request, CancellationToken ct)
+    {
+        await confirmEmailChangeValidator.ValidateAndThrowAppAsync(request, ct);
+        return Ok(await usersService.ConfirmEmailChangeAsync(currentUser.UserId!, request, ct));
     }
 
     [HttpGet("me/login-history")]

@@ -3,7 +3,7 @@ using FluentValidation;
 
 namespace BusinessOS.Application.ViewModels.Users;
 
-public record UpdateUserRequest(string? Name, string? AvatarUrl, UserStatus? Status);
+public record UpdateUserRequest(string? Name, string? AvatarUrl, string? CoverUrl, UserStatus? Status);
 
 // RbacRoleId optionally assigns a custom RBAC role in one shot; when omitted, the invited
 // user's role is resolved from the legacy Role via SystemRoles.ForLegacyRole (see UsersService).
@@ -16,6 +16,12 @@ public record UpdateRoleRequest(Role Role, string? RbacRoleId = null);
 public record SetPasswordRequest(string NewPassword);
 
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+// Email is also the login identifier, so changing it goes through the same style of
+// code-verification as registration/invite (see AuthService) rather than applying immediately.
+public record RequestEmailChangeRequest(string NewEmail);
+
+public record ConfirmEmailChangeRequest(string Code);
 
 public class UpdateUserRequestValidator : AbstractValidator<UpdateUserRequest>
 {
@@ -69,6 +75,22 @@ public record BulkInviteResult(int SuccessCount, int FailureCount, IReadOnlyList
 {
     public static BulkInviteResult From(IReadOnlyList<BulkInviteResultItem> results) =>
         new(results.Count(r => r.Success), results.Count(r => !r.Success), results);
+}
+
+public class RequestEmailChangeRequestValidator : AbstractValidator<RequestEmailChangeRequest>
+{
+    public RequestEmailChangeRequestValidator()
+    {
+        RuleFor(x => x.NewEmail).NotEmpty().EmailAddress();
+    }
+}
+
+public class ConfirmEmailChangeRequestValidator : AbstractValidator<ConfirmEmailChangeRequest>
+{
+    public ConfirmEmailChangeRequestValidator()
+    {
+        RuleFor(x => x.Code).NotEmpty().Length(6);
+    }
 }
 
 public class BulkInviteUsersRequestValidator : AbstractValidator<BulkInviteUsersRequest>

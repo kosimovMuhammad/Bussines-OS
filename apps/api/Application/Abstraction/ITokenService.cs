@@ -6,7 +6,7 @@ public record RefreshTokenPayload(string UserId, string Jti);
 
 public interface ITokenService
 {
-    string CreateAccessToken(string userId, string companyId, Role role);
+    string CreateAccessToken(string userId, string companyId, Role role, string? branchId = null);
 
     // Returns the signed JWT and its jti claim (persisted, hashed, as the RefreshToken row id).
     (string Token, string Jti) CreateRefreshToken(string userId);

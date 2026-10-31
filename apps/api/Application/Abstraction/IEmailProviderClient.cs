@@ -6,12 +6,12 @@ public interface IGmailClient
 {
     string GetAuthUrl(string state);
     Task<OAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default);
-    Task SendEmailAsync(string accessToken, string toEmail, string subject, string body, CancellationToken cancellationToken = default);
+    Task<string?> SendEmailAsync(string accessToken, string toEmail, string subject, string body, CancellationToken cancellationToken = default);
 }
 
 public interface IOutlookClient
 {
     string GetAuthUrl(string state);
     Task<OAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default);
-    Task SendEmailAsync(string accessToken, string toEmail, string subject, string body, CancellationToken cancellationToken = default);
+    Task<string?> SendEmailAsync(string accessToken, string toEmail, string subject, string body, CancellationToken cancellationToken = default);
 }

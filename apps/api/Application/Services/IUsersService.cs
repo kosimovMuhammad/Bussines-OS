@@ -1,4 +1,5 @@
 using BusinessOS.Application.ViewModels;
+using BusinessOS.Application.ViewModels.Files;
 using BusinessOS.Application.ViewModels.Users;
 using BusinessOS.Domain.Enums;
 
@@ -10,6 +11,11 @@ public interface IUsersService
     Task<UserDto> UpdateMeAsync(string userId, UpdateUserRequest request, CancellationToken cancellationToken = default);
     Task SetPasswordAsync(string userId, SetPasswordRequest request, CancellationToken cancellationToken = default);
     Task ChangePasswordAsync(string userId, ChangePasswordRequest request, CancellationToken cancellationToken = default);
+    Task<PresignUploadResponse> PresignProfileMediaAsync(string userId, PresignProfileMediaRequest request, CancellationToken cancellationToken = default);
+    Task<UserDto> ConfirmProfileMediaAsync(string userId, ConfirmProfileMediaRequest request, CancellationToken cancellationToken = default);
+    Task<UserDto> RemoveProfileMediaAsync(string userId, ProfileMediaTarget target, CancellationToken cancellationToken = default);
+    Task RequestEmailChangeAsync(string userId, RequestEmailChangeRequest request, CancellationToken cancellationToken = default);
+    Task<UserDto> ConfirmEmailChangeAsync(string userId, ConfirmEmailChangeRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<UserDto>> ListAsync(string companyId, CancellationToken cancellationToken = default);
     Task<UserDto> GetOneAsync(string companyId, string id, CancellationToken cancellationToken = default);
     Task<UserDto> InviteAsync(string companyId, string actorUserId, InviteUserRequest request, CancellationToken cancellationToken = default);

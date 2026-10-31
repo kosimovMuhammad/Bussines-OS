@@ -1,9 +1,11 @@
+using System.Net.Mail;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
 using BusinessOS.Application.ViewModels.Email;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Application.Services;
 
@@ -12,7 +14,8 @@ public class EmailService(
     IGmailClient gmailClient,
     IOutlookClient outlookClient,
     IOAuthStateService oauthState,
-    ITokenCipher tokenCipher) : IEmailService
+    ITokenCipher tokenCipher,
+    ILogger<EmailService> logger) : IEmailService
 {
     public string GetGmailAuthUrl(string userId, string companyId) =>
         gmailClient.GetAuthUrl(oauthState.Create(userId, companyId));
@@ -36,21 +39,30 @@ public class EmailService(
 
     public async Task SendAsync(string companyId, string userId, SendEmailRequest request, CancellationToken cancellationToken = default)
     {
-        var contact = await db.Contacts.SingleOrDefaultAsync(c => c.Id == request.ContactId, cancellationToken)
+        var contact = await db.Contacts.SingleOrDefaultAsync(c => c.Id == request.ContactId && c.CompanyId == companyId, cancellationToken)
             ?? throw new NotFoundException("Contact not found");
 
         if (string.IsNullOrWhiteSpace(contact.Email))
         {
-            throw new ConflictException("Contact has no email address");
+            throw new BadRequestException("Contact has no email address");
         }
 
+        if (!IsWellFormedEmail(contact.Email))
+        {
+            throw new BadRequestException("Contact has an invalid email address");
+        }
+
+        // Company-scoped, not user-scoped: any user in the company should be able to send
+        // through whichever Gmail/Outlook account the company connected, not only their own -
+        // matches CompanyService.GetIntegrationsAsync's notion of "connected".
         var connection = await db.OAuthConnections
-            .Where(c => c.UserId == userId && (c.Provider == OAuthProvider.Google || c.Provider == OAuthProvider.Microsoft))
+            .Where(c => c.CompanyId == companyId && (c.Provider == OAuthProvider.Google || c.Provider == OAuthProvider.Microsoft))
             .OrderByDescending(c => c.UpdatedAt)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new ConflictException("No email provider connected");
+            ?? throw new BadRequestException("No email account connected. Connect Gmail/Outlook in Settings first");
 
         var accessToken = tokenCipher.Decrypt(connection.EncryptedAccessToken);
+        var channel = connection.Provider == OAuthProvider.Google ? "Gmail" : "Outlook";
 
         var communication = new Communication
         {
@@ -64,27 +76,54 @@ public class EmailService(
 
         try
         {
-            if (connection.Provider == OAuthProvider.Google)
-            {
-                await gmailClient.SendEmailAsync(accessToken, contact.Email, request.Subject, request.Body, cancellationToken);
-            }
-            else
-            {
-                await outlookClient.SendEmailAsync(accessToken, contact.Email, request.Subject, request.Body, cancellationToken);
-            }
+            var messageId = connection.Provider == OAuthProvider.Google
+                ? await gmailClient.SendEmailAsync(accessToken, contact.Email, request.Subject, request.Body, cancellationToken)
+                : await outlookClient.SendEmailAsync(accessToken, contact.Email, request.Subject, request.Body, cancellationToken);
 
             communication.Status = CommunicationStatus.Sent;
+            communication.ProviderMessageId = messageId;
+            logger.LogInformation(
+                "{Channel} send succeeded: contactId={ContactId} to={To} sentBy={UserId} messageId={MessageId}",
+                channel, contact.Id, MaskEmail(contact.Email), userId, messageId);
         }
-        catch
+        catch (Exception ex)
         {
             communication.Status = CommunicationStatus.Failed;
             db.Communications.Add(communication);
             await db.SaveChangesAsync(cancellationToken);
-            throw;
+            logger.LogInformation(ex, "{Channel} send failed: contactId={ContactId} to={To} sentBy={UserId}", channel, contact.Id, MaskEmail(contact.Email), userId);
+            throw ex is ExternalServiceException ese
+                ? ExternalSendErrorMapper.Map(channel, ese)
+                : new ExternalServiceException($"Failed to send email: {ex.Message}");
         }
 
         db.Communications.Add(communication);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static bool IsWellFormedEmail(string email)
+    {
+        try
+        {
+            return new MailAddress(email).Address == email;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    // Same masking intent as WhatsAppService.MaskPhone: keep enough visible for debugging
+    // without logging the full address (PII, Information-level logs aren't access-restricted).
+    private static string MaskEmail(string email)
+    {
+        var at = email.IndexOf('@');
+        if (at <= 1)
+        {
+            return "***";
+        }
+
+        return $"{email[..2]}***{email[at..]}";
     }
 
     private async Task UpsertConnectionAsync(string companyId, string userId, OAuthProvider provider, OAuthTokenResult tokens, CancellationToken cancellationToken)

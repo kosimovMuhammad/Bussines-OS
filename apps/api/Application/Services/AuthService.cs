@@ -358,7 +358,7 @@ public class AuthService(
 
     private async Task<AuthTokens> IssueTokensAsync(User user, CancellationToken cancellationToken, string? ipAddress = null, string? userAgent = null)
     {
-        var accessToken = tokenService.CreateAccessToken(user.Id, user.CompanyId, user.Role);
+        var accessToken = tokenService.CreateAccessToken(user.Id, user.CompanyId, user.Role, user.BranchId);
         var (refreshToken, jti) = tokenService.CreateRefreshToken(user.Id);
 
         db.RefreshTokens.Add(new RefreshToken
@@ -384,8 +384,10 @@ public class AuthService(
         user.Email,
         user.Role.ToString(),
         user.AvatarUrl,
+        user.CoverUrl,
         user.Status.ToString(),
         user.LastLoginAt,
         user.CreatedAt,
-        user.PasswordHash is not null);
+        user.PasswordHash is not null,
+        user.IsPlatformAdmin);
 }
