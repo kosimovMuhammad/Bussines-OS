@@ -1,51 +1,19 @@
 using BusinessOS.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Infrastructure.BackgroundJobs;
 
-// The first (and only) recurring scheduler in this codebase - not a second one competing
-// with an existing library (see the Automation Engine Phase 4 plan's recon: no
-// Hangfire/Quartz/scheduler existed prior to this). Ticks on a fixed interval rather than
-// computing an exact next-wake time - simpler, and one-minute granularity is already what
-// cron itself offers, so nothing is lost.
+// Ticks on a fixed interval rather than computing an exact next-wake time - one-minute
+// granularity is what cron itself offers, so nothing is lost.
 public class WorkflowSchedulerHostedService(
     IServiceScopeFactory scopeFactory,
-    ILogger<WorkflowSchedulerHostedService> logger) : BackgroundService
+    ILogger<WorkflowSchedulerHostedService> logger) : PeriodicBackgroundService(scopeFactory, logger)
 {
-    private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(1);
+    protected override string JobName => "Workflow scheduler";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await RunLoopAsync(stoppingToken);
-        }
-        // Host shutdown (or a failed startup, e.g. port in use, which disposes the host) cancels
-        // stoppingToken - that's a normal exit, not a service fault that should trip StopHost.
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException
-                                   && stoppingToken.IsCancellationRequested)
-        {
-        }
-    }
+    protected override TimeSpan Interval => TimeSpan.FromMinutes(1);
 
-    private async Task RunLoopAsync(CancellationToken stoppingToken)
-    {
-        using var timer = new PeriodicTimer(TickInterval);
-
-        while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
-        {
-            try
-            {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                var scheduler = scope.ServiceProvider.GetRequiredService<IWorkflowSchedulerService>();
-                await scheduler.RunDueTriggersAsync(stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Workflow scheduler tick failed");
-            }
-        }
-    }
+    protected override Task RunTickAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+        services.GetRequiredService<IWorkflowSchedulerService>().RunDueTriggersAsync(cancellationToken);
 }

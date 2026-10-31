@@ -15,6 +15,20 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The default Windows host also logs to the Event Log. That provider is disposed before the host
+// finishes stopping, which produced ObjectDisposedException noise on every shutdown, and nobody reads
+// the Event Log for this app. Console (+ Debug in an IDE) is all we need; production collects stdout.
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+// Background jobs (token refresh, workflow scheduler, ...) are secondary to serving requests and
+// webhooks. The default, StopHost, means a single faulted job takes the whole API down. Ignore
+// keeps the API up; the job base classes already catch and log every tick failure, so reaching this
+// safety net means a bug, which is logged as an error by the host.
+builder.Services.Configure<HostOptions>(options =>
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
+
 ValidateRequiredConfiguration(builder.Configuration);
 
 var corsOrigins = (builder.Configuration["CORS_ORIGIN"] ?? "http://localhost:5173")

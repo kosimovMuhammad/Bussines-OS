@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Infrastructure.BackgroundJobs;
 
+// Drains IBackgroundTaskQueue (webhook processing etc.). Same rules as PeriodicBackgroundService:
+// one DI scope per work item, shutdown is a normal exit, and a failing item - including an HTTP
+// timeout surfacing as TaskCanceledException - is logged and never stops the host.
 public class QueuedHostedService(
     IBackgroundTaskQueue taskQueue,
     IServiceScopeFactory scopeFactory,
@@ -14,30 +17,35 @@ public class QueuedHostedService(
     {
         try
         {
-            await RunLoopAsync(stoppingToken);
-        }
-        // Host shutdown (or a failed startup, e.g. port in use, which disposes the host) cancels
-        // stoppingToken - that's a normal exit, not a service fault that should trip StopHost.
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException
-                                   && stoppingToken.IsCancellationRequested)
-        {
-        }
-    }
+            await Task.Yield();
 
-    private async Task RunLoopAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var workItem = await taskQueue.DequeueAsync(stoppingToken);
+                try
+                {
+                    await using var scope = scopeFactory.CreateAsyncScope();
+                    await workItem(scope.ServiceProvider, stoppingToken);
+                }
+                catch (Exception ex) when (stoppingToken.IsCancellationRequested
+                                           && ex is OperationCanceledException or ObjectDisposedException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Background task queue work item failed");
+                }
+            }
+        }
+        catch (Exception ex) when (stoppingToken.IsCancellationRequested
+                                   && ex is OperationCanceledException or ObjectDisposedException)
         {
-            var workItem = await taskQueue.DequeueAsync(stoppingToken);
-            try
-            {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                await workItem(scope.ServiceProvider, stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Background task queue work item failed");
-            }
+            // Normal shutdown.
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex, "Background task queue loop terminated unexpectedly");
         }
     }
 }

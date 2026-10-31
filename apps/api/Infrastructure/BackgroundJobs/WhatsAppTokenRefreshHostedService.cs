@@ -1,54 +1,20 @@
 using BusinessOS.Application.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Infrastructure.BackgroundJobs;
 
-// Mirrors InstagramTokenRefreshHostedService - see that class for the reasoning.
+// Mirrors InstagramTokenRefreshHostedService.
 public class WhatsAppTokenRefreshHostedService(
     IServiceScopeFactory scopeFactory,
-    ILogger<WhatsAppTokenRefreshHostedService> logger) : BackgroundService
+    ILogger<WhatsAppTokenRefreshHostedService> logger) : PeriodicBackgroundService(scopeFactory, logger)
 {
-    private static readonly TimeSpan TickInterval = TimeSpan.FromHours(24);
+    protected override string JobName => "WhatsApp token refresh";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await RunLoopAsync(stoppingToken);
-        }
-        // Host shutdown (or a failed startup, e.g. port in use, which disposes the host) cancels
-        // stoppingToken - that's a normal exit, not a service fault that should trip StopHost.
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException
-                                   && stoppingToken.IsCancellationRequested)
-        {
-        }
-    }
+    protected override TimeSpan Interval => TimeSpan.FromHours(24);
 
-    private async Task RunLoopAsync(CancellationToken stoppingToken)
-    {
-        using var timer = new PeriodicTimer(TickInterval);
+    protected override bool RunOnStartup => true;
 
-        await RunOnceAsync(stoppingToken);
-
-        while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
-        {
-            await RunOnceAsync(stoppingToken);
-        }
-    }
-
-    private async Task RunOnceAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var refreshService = scope.ServiceProvider.GetRequiredService<IWhatsAppTokenRefreshService>();
-            await refreshService.RefreshDueTokensAsync(stoppingToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogError(ex, "WhatsApp token refresh tick failed");
-        }
-    }
+    protected override Task RunTickAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+        services.GetRequiredService<IWhatsAppTokenRefreshService>().RefreshDueTokensAsync(cancellationToken);
 }
