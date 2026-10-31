@@ -5,15 +5,16 @@ using BusinessOS.Application.ViewModels;
 using BusinessOS.Application.ViewModels.Activity;
 using BusinessOS.Application.ViewModels.Contacts;
 using BusinessOS.Domain.Entities;
+using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace BusinessOS.Application.Services;
 
-public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnforcement, IActivityLogService activityLog) : IContactsService
+public class ContactsService(IAppDbContext db, INotificationService notifications, ILimitEnforcementService limitEnforcement, IActivityLogService activityLog) : IContactsService
 {
     public async Task<PagedResult<ContactDto>> ListAsync(string companyId, QueryContactsRequest query, CancellationToken cancellationToken = default)
     {
-        var contacts = db.Contacts.Include(c => c.Owner).AsQueryable();
+        var contacts = db.Contacts.Include(c => c.Owner).Include(c => c.Branch).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -57,6 +58,7 @@ public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnf
     {
         var contact = await db.Contacts
             .Include(c => c.Owner)
+            .Include(c => c.Branch)
             .Include(c => c.Deals)
             .Include(c => c.Tasks)
             .Include(c => c.Communications).ThenInclude(cm => cm.AiSummary)
@@ -72,13 +74,14 @@ public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnf
             contact.Communications
                 .OrderByDescending(cm => cm.Timestamp)
                 .Select(ToCommunicationSummary)
-                .ToList());
+                .ToList(),
+            contact.IsArchived, contact.BranchId, contact.Branch?.Name);
     }
 
     public Task<IReadOnlyList<TimelineEventDto>> GetTimelineAsync(string companyId, string id, CancellationToken cancellationToken = default) =>
         activityLog.GetContactTimelineAsync(companyId, id, cancellationToken);
 
-    public async Task<ContactDto> CreateAsync(string companyId, CreateContactRequest request, CancellationToken cancellationToken = default)
+    public async Task<ContactDto> CreateAsync(string companyId, CreateContactRequest request, Role callerRole, string? callerBranchId, CancellationToken cancellationToken = default)
     {
         await limitEnforcement.CheckLimitAsync(companyId, UsageMetricKeys.MaxContacts, cancellationToken);
         await ValidateOwnerAsync(companyId, request.OwnerId, cancellationToken);
@@ -95,24 +98,39 @@ public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnf
             Notes = request.Notes,
             OwnerId = request.OwnerId,
             Tags = request.Tags ?? [],
+            // Only Role.Owner (the company's director/super-admin) can assign a contact to an
+            // arbitrary branch - everyone else always gets their own branch, ignoring whatever
+            // BranchId the client sent, same reasoning as InstagramBusinessAccountId never
+            // coming from the caller.
+            BranchId = callerRole == Role.Owner ? request.BranchId : callerBranchId,
         };
 
         db.Contacts.Add(contact);
         await db.SaveChangesAsync(cancellationToken);
 
         contact.Owner = contact.OwnerId is null ? null : await db.Users.FindAsync([contact.OwnerId], cancellationToken);
+
+        if (contact.OwnerId is not null)
+        {
+            var contactName = $"{contact.FirstName} {contact.LastName}".Trim();
+            await notifications.NotifyAsync(companyId, contact.OwnerId, NotificationType.LeadAssigned,
+                "Lead assigned to you", $"\"{contactName}\" was assigned to you", "Contact", contact.Id, cancellationToken);
+        }
+
         return ToDto(contact);
     }
 
-    public async Task<ContactDto> UpdateAsync(string companyId, string id, UpdateContactRequest request, CancellationToken cancellationToken = default)
+    public async Task<ContactDto> UpdateAsync(string companyId, string id, UpdateContactRequest request, Role callerRole, CancellationToken cancellationToken = default)
     {
-        var contact = await db.Contacts.Include(c => c.Owner).SingleOrDefaultAsync(c => c.Id == id, cancellationToken)
+        var contact = await db.Contacts.Include(c => c.Owner).Include(c => c.Branch).SingleOrDefaultAsync(c => c.Id == id, cancellationToken)
             ?? throw new NotFoundException("Contact not found");
 
         if (request.OwnerId is not null)
         {
             await ValidateOwnerAsync(companyId, request.OwnerId, cancellationToken);
         }
+
+        var previousOwnerId = contact.OwnerId;
 
         if (request.FirstName is not null) contact.FirstName = request.FirstName;
         if (request.LastName is not null) contact.LastName = request.LastName;
@@ -123,8 +141,19 @@ public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnf
         if (request.Notes is not null) contact.Notes = request.Notes;
         if (request.OwnerId is not null) contact.OwnerId = request.OwnerId;
         if (request.Tags is not null) contact.Tags = request.Tags;
+        // Only Role.Owner can move a contact to another branch or unassign it - a branch admin
+        // can't reassign their own contacts out of their branch (or into someone else's).
+        if (callerRole == Role.Owner && request.BranchId is not null) contact.BranchId = request.BranchId;
 
         await db.SaveChangesAsync(cancellationToken);
+
+        if (request.OwnerId is not null && request.OwnerId != previousOwnerId)
+        {
+            var contactName = $"{contact.FirstName} {contact.LastName}".Trim();
+            await notifications.NotifyAsync(companyId, request.OwnerId, NotificationType.LeadAssigned,
+                "Lead assigned to you", $"\"{contactName}\" was assigned to you", "Contact", contact.Id, cancellationToken);
+        }
+
         return ToDto(contact);
     }
 
@@ -163,16 +192,16 @@ public class ContactsService(IAppDbContext db, ILimitEnforcementService limitEnf
 
     private static ContactDto ToDto(Contact c) => new(
         c.Id, c.CompanyId, c.FirstName, c.LastName, c.Email, c.Phone, c.Position, c.CompanyName, c.Notes,
-        c.OwnerId, c.Owner?.Name, c.Tags, c.CreatedAt, c.UpdatedAt, c.IsArchived);
+        c.OwnerId, c.Owner?.Name, c.Tags, c.CreatedAt, c.UpdatedAt, c.IsArchived, c.BranchId, c.Branch?.Name);
 
-    public async Task<BulkOperationResult> BulkUpdateAsync(string companyId, IReadOnlyList<string> ids, UpdateContactRequest patch, CancellationToken cancellationToken = default)
+    public async Task<BulkOperationResult> BulkUpdateAsync(string companyId, IReadOnlyList<string> ids, UpdateContactRequest patch, Role callerRole, CancellationToken cancellationToken = default)
     {
         var results = new List<BulkOperationResultItem>();
         foreach (var id in ids)
         {
             try
             {
-                await UpdateAsync(companyId, id, patch, cancellationToken);
+                await UpdateAsync(companyId, id, patch, callerRole, cancellationToken);
                 results.Add(new BulkOperationResultItem(id, true, null));
             }
             catch (Exception ex) when (ex is NotFoundException or ConflictException or ValidationAppException or ForbiddenException)

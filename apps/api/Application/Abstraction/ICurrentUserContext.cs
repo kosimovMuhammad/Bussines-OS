@@ -7,4 +7,5 @@ public interface ICurrentUserContext
     string? UserId { get; }
     string? CompanyId { get; }
     Role? Role { get; }
+    string? BranchId { get; }
 }

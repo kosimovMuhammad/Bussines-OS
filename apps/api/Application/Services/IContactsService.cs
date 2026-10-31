@@ -1,6 +1,7 @@
 using BusinessOS.Application.ViewModels;
 using BusinessOS.Application.ViewModels.Activity;
 using BusinessOS.Application.ViewModels.Contacts;
+using BusinessOS.Domain.Enums;
 
 namespace BusinessOS.Application.Services;
 
@@ -14,11 +15,11 @@ public interface IContactsService
     // route, richer payload.
     Task<IReadOnlyList<TimelineEventDto>> GetTimelineAsync(string companyId, string id, CancellationToken cancellationToken = default);
 
-    Task<ContactDto> CreateAsync(string companyId, CreateContactRequest request, CancellationToken cancellationToken = default);
-    Task<ContactDto> UpdateAsync(string companyId, string id, UpdateContactRequest request, CancellationToken cancellationToken = default);
+    Task<ContactDto> CreateAsync(string companyId, CreateContactRequest request, Role callerRole, string? callerBranchId, CancellationToken cancellationToken = default);
+    Task<ContactDto> UpdateAsync(string companyId, string id, UpdateContactRequest request, Role callerRole, CancellationToken cancellationToken = default);
     Task RemoveAsync(string companyId, string id, CancellationToken cancellationToken = default);
 
-    Task<BulkOperationResult> BulkUpdateAsync(string companyId, IReadOnlyList<string> ids, UpdateContactRequest patch, CancellationToken cancellationToken = default);
+    Task<BulkOperationResult> BulkUpdateAsync(string companyId, IReadOnlyList<string> ids, UpdateContactRequest patch, Role callerRole, CancellationToken cancellationToken = default);
     Task<BulkOperationResult> BulkDeleteAsync(string companyId, IReadOnlyList<string> ids, CancellationToken cancellationToken = default);
 
     Task<string> ExportCsvAsync(string companyId, CancellationToken cancellationToken = default);

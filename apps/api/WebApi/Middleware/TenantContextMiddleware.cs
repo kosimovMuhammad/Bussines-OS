@@ -16,6 +16,7 @@ public class TenantContextMiddleware(RequestDelegate next)
             var userId = context.User.FindFirst("sub")?.Value;
             var companyId = context.User.FindFirst("companyId")?.Value;
             var roleClaim = context.User.FindFirst("role")?.Value;
+            var branchId = context.User.FindFirst("branchId")?.Value;
 
             if (userId is null || companyId is null || roleClaim is null || !Enum.TryParse<Role>(roleClaim, out var role))
             {
@@ -24,8 +25,8 @@ public class TenantContextMiddleware(RequestDelegate next)
                 return;
             }
 
-            tenantContext.Set(companyId);
-            userContext.Set(userId, companyId, role);
+            tenantContext.Set(companyId, role, branchId);
+            userContext.Set(userId, companyId, role, branchId);
         }
 
         await next(context);

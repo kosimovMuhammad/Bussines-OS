@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BusinessOS.Application.Services;
 
-public class CommunicationsService(IAppDbContext db) : ICommunicationsService
+public class CommunicationsService(IAppDbContext db, IRealtimeNotifier notifier) : ICommunicationsService
 {
     public async Task<IReadOnlyList<CommunicationDto>> ListAsync(string companyId, QueryCommunicationsRequest query, CancellationToken cancellationToken = default)
     {
@@ -19,6 +19,7 @@ public class CommunicationsService(IAppDbContext db) : ICommunicationsService
         }
         if (query.Channel is not null)
         {
+            
             communications = communications.Where(c => c.Channel == query.Channel);
         }
 
@@ -45,12 +46,10 @@ public class CommunicationsService(IAppDbContext db) : ICommunicationsService
         await db.SaveChangesAsync(cancellationToken);
 
         communication.Contact = contact;
-        return ToDto(communication);
+        var dto = CommunicationDtoMapper.ToDto(communication, contact);
+        await notifier.NotifyNewCommunicationAsync(companyId, contact.BranchId, dto, cancellationToken);
+        return dto;
     }
 
-    private static CommunicationDto ToDto(Communication c) => new(
-        c.Id, c.CompanyId, c.ContactId,
-        c.Contact is null ? null : $"{c.Contact.FirstName} {c.Contact.LastName}".Trim(),
-        c.Channel.ToString(), c.Direction.ToString(), c.Content, c.ProviderMessageId, c.Status.ToString(), c.Timestamp,
-        c.AiSummary?.Summary);
+    private static CommunicationDto ToDto(Communication c) => CommunicationDtoMapper.ToDto(c);
 }

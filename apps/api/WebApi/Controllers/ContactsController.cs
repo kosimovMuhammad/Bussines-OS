@@ -42,14 +42,14 @@ public class ContactsController(
     public async Task<IActionResult> Create(CreateContactRequest request, CancellationToken ct)
     {
         await createValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await contactsService.CreateAsync(currentUser.CompanyId!, request, ct));
+        return Ok(await contactsService.CreateAsync(currentUser.CompanyId!, request, currentUser.Role!.Value, currentUser.BranchId, ct));
     }
 
     [HttpPatch("{id}")]
     public async Task<IActionResult> Update(string id, UpdateContactRequest request, CancellationToken ct)
     {
         await updateValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await contactsService.UpdateAsync(currentUser.CompanyId!, id, request, ct));
+        return Ok(await contactsService.UpdateAsync(currentUser.CompanyId!, id, request, currentUser.Role!.Value, ct));
     }
 
     [HttpDelete("{id}")]
@@ -80,7 +80,7 @@ public class ContactsController(
     public async Task<IActionResult> BulkUpdate(BulkUpdateContactsRequest request, CancellationToken ct)
     {
         await bulkUpdateValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await contactsService.BulkUpdateAsync(currentUser.CompanyId!, request.Ids, request.Patch, ct));
+        return Ok(await contactsService.BulkUpdateAsync(currentUser.CompanyId!, request.Ids, request.Patch, currentUser.Role!.Value, ct));
     }
 
     [HttpPost("bulk-delete")]

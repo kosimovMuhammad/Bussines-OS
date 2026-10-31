@@ -2,6 +2,9 @@ using FluentValidation;
 
 namespace BusinessOS.Application.ViewModels.Contacts;
 
+// BranchId is only honored for the caller when they're Role.Owner - see
+// ContactsService.CreateAsync/UpdateAsync. Any other caller has it silently ignored
+// (forced to their own branch on create, left unchanged on update).
 public record CreateContactRequest(
     string FirstName,
     string? LastName,
@@ -11,7 +14,8 @@ public record CreateContactRequest(
     string? CompanyName,
     string? Notes,
     string? OwnerId,
-    List<string>? Tags);
+    List<string>? Tags,
+    string? BranchId = null);
 
 public record UpdateContactRequest(
     string? FirstName,
@@ -22,7 +26,8 @@ public record UpdateContactRequest(
     string? CompanyName,
     string? Notes,
     string? OwnerId,
-    List<string>? Tags);
+    List<string>? Tags,
+    string? BranchId = null);
 
 public record QueryContactsRequest(string? Search, string? Tag, string? OwnerId, bool IncludeArchived = false, int Page = 1, int Limit = 20);
 
@@ -41,7 +46,9 @@ public record ContactDto(
     IReadOnlyList<string> Tags,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    bool IsArchived = false);
+    bool IsArchived = false,
+    string? BranchId = null,
+    string? BranchName = null);
 
 public record BulkUpdateContactsRequest(List<string> Ids, UpdateContactRequest Patch);
 
@@ -76,8 +83,10 @@ public record ContactDetailDto(
     IReadOnlyList<ContactDealSummary> Deals,
     IReadOnlyList<ContactTaskSummary> Tasks,
     IReadOnlyList<ContactCommunicationSummary> Communications,
-    bool IsArchived = false)
-    : ContactDto(Id, CompanyId, FirstName, LastName, Email, Phone, Position, CompanyName, Notes, OwnerId, OwnerName, Tags, CreatedAt, UpdatedAt, IsArchived);
+    bool IsArchived = false,
+    string? BranchId = null,
+    string? BranchName = null)
+    : ContactDto(Id, CompanyId, FirstName, LastName, Email, Phone, Position, CompanyName, Notes, OwnerId, OwnerName, Tags, CreatedAt, UpdatedAt, IsArchived, BranchId, BranchName);
 
 public static class PhoneUtil
 {
