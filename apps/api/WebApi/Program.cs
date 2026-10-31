@@ -34,8 +34,7 @@ builder.Services.Configure<HostOptions>(options =>
 
 ValidateRequiredConfiguration(builder.Configuration);
 
-var corsOrigins = (builder.Configuration["CORS_ORIGIN"] ?? "http://localhost:5173")
-    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+var corsOrigins = BuildCorsOrigins(builder.Configuration, builder.Environment);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
@@ -222,6 +221,32 @@ static void ValidateRequiredConfiguration(IConfiguration configuration)
     {
         throw new InvalidOperationException("Invalid configuration:\n" + string.Join('\n', errors));
     }
+}
+
+static string[] BuildCorsOrigins(IConfiguration configuration, IHostEnvironment environment)
+{
+    // CORS_ORIGIN is a comma-separated list of the FRONTEND origins (scheme + host + port, no path).
+    // It is the browser origin that matters, not the API URL: the API being reachable over both
+    // http://localhost:5129 and https://localhost:7129 needs no extra entries here.
+    var origins = (configuration["CORS_ORIGIN"] ?? "http://localhost:5173")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(o => o.TrimEnd('/'))
+        .ToList();
+
+    if (origins.Contains("*"))
+    {
+        // AllowCredentials + "any origin" is rejected by the browser and would be unsafe anyway.
+        throw new InvalidOperationException("CORS_ORIGIN must list explicit origins; '*' is not allowed because credentials (cookies) are enabled");
+    }
+
+    if (environment.IsDevelopment())
+    {
+        // Common local variants of the Next.js dev server, so switching the frontend to https or
+        // opening it via 127.0.0.1 does not need a config change.
+        origins.AddRange(["https://localhost:5173", "http://127.0.0.1:5173", "https://127.0.0.1:5173"]);
+    }
+
+    return origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 }
 
 public partial class Program;
