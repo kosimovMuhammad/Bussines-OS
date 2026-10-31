@@ -6,10 +6,16 @@ using BusinessOS.Application.ViewModels.Notifications;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BusinessOS.Application.Services;
 
-public class NotificationService(IAppDbContext db) : INotificationService
+public class NotificationService(
+    IAppDbContext db,
+    IAuditLogService auditLog,
+    IBackgroundTaskQueue backgroundQueue,
+    ILogger<NotificationService> logger) : INotificationService
 {
     public async Task<PagedResult<NotificationDto>> ListAsync(string userId, QueryNotificationsRequest query, CancellationToken cancellationToken = default)
     {
@@ -40,7 +46,7 @@ public class NotificationService(IAppDbContext db) : INotificationService
         return ToDto(notification);
     }
 
-    public async Task<NotificationDto> CreateAsync(string companyId, CreateNotificationRequest request, CancellationToken cancellationToken = default)
+    public async Task<NotificationDto> CreateAsync(string companyId, string actorUserId, CreateNotificationRequest request, CancellationToken cancellationToken = default)
     {
         var targetExists = await db.Users.AnyAsync(u => u.Id == request.TargetUserId && u.CompanyId == companyId, cancellationToken);
         if (!targetExists)
@@ -60,6 +66,7 @@ public class NotificationService(IAppDbContext db) : INotificationService
         };
 
         db.Notifications.Add(notification);
+        auditLog.Log(companyId, actorUserId, "notification.created", "Notification", notification.Id, new { targetUserId = request.TargetUserId, type = request.Type.ToString() });
         await db.SaveChangesAsync(cancellationToken);
         return ToDto(notification);
     }
@@ -99,29 +106,61 @@ public class NotificationService(IAppDbContext db) : INotificationService
             ?? throw new NotFoundException("Notification not found");
 
         db.Notifications.Remove(notification);
+        auditLog.Log(notification.CompanyId, userId, "notification.deleted", "Notification", id, new { type = notification.Type.ToString() });
         await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task NotifyAsync(string companyId, string userId, NotificationType type, string title, string body, string? relatedEntityType = null, string? relatedEntityId = null, CancellationToken cancellationToken = default)
     {
-        var enabled = await IsChannelEnabledAsync(userId, type, NotificationChannel.InApp, cancellationToken);
-        if (!enabled)
+        var inAppEnabled = await IsChannelEnabledAsync(userId, type, NotificationChannel.InApp, cancellationToken);
+        if (inAppEnabled)
         {
-            return;
+            db.Notifications.Add(new Notification
+            {
+                CompanyId = companyId,
+                UserId = userId,
+                Type = type,
+                Title = title,
+                Body = body,
+                RelatedEntityType = relatedEntityType,
+                RelatedEntityId = relatedEntityId,
+            });
+
+            await db.SaveChangesAsync(cancellationToken);
         }
 
-        db.Notifications.Add(new Notification
+        var emailEnabled = await IsChannelEnabledAsync(userId, type, NotificationChannel.Email, cancellationToken);
+        if (emailEnabled)
         {
-            CompanyId = companyId,
-            UserId = userId,
-            Type = type,
-            Title = title,
-            Body = body,
-            RelatedEntityType = relatedEntityType,
-            RelatedEntityId = relatedEntityId,
-        });
+            var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId, cancellationToken);
+            if (user is not null)
+            {
+                var recipientEmail = user.Email;
+                var recipientName = user.Name;
+                await backgroundQueue.QueueAsync(async (sp, ct) =>
+                {
+                    try
+                    {
+                        var mail = sp.GetRequiredService<IMailService>();
+                        await mail.SendNotificationEmailAsync(recipientEmail, recipientName, title, body, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        var bgLogger = sp.GetRequiredService<ILogger<NotificationService>>();
+                        bgLogger.LogError(ex, "Failed to send notification email to user {UserId}", userId);
+                    }
+                });
+            }
+        }
 
-        await db.SaveChangesAsync(cancellationToken);
+        var whatsAppEnabled = await IsChannelEnabledAsync(userId, type, NotificationChannel.WhatsApp, cancellationToken);
+        if (whatsAppEnabled)
+        {
+            // TODO: no User.Phone field exists yet - once one is added, resolve the recipient's
+            // phone number here and call IWhatsAppClient.SendPlatformTextMessageAsync, dispatched
+            // via IBackgroundTaskQueue the same way the Email branch above does.
+            logger.LogInformation("WhatsApp notification dispatch not yet implemented - no User.Phone source (userId={UserId}, type={Type})", userId, type);
+        }
     }
 
     public async Task<IReadOnlyList<NotificationPreferenceDto>> GetPreferencesAsync(string userId, CancellationToken cancellationToken = default)

@@ -3,6 +3,7 @@ using BusinessOS.Application.ViewModels.Notifications;
 using BusinessOS.Domain.Entities;
 using BusinessOS.Domain.Enums;
 using BusinessOS.Tests.TestSupport;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BusinessOS.Tests.Unit;
 
@@ -17,7 +18,8 @@ public class NotificationServiceTests
         db.Context.Users.Add(user);
         db.Context.SaveChanges();
 
-        return (db, new NotificationService(db.Context), company, user);
+        var service = new NotificationService(db.Context, new AuditLogService(db.Context), new NoopBackgroundTaskQueue(), NullLogger<NotificationService>.Instance);
+        return (db, service, company, user);
     }
 
     [Fact]

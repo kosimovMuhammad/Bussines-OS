@@ -39,7 +39,7 @@ public class NotificationsController(
     public async Task<IActionResult> Create(CreateNotificationRequest request, CancellationToken ct)
     {
         await createValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await notificationService.CreateAsync(currentUser.CompanyId!, request, ct));
+        return Ok(await notificationService.CreateAsync(currentUser.CompanyId!, currentUser.UserId!, request, ct));
     }
 
     // RequireAction(Read) override on all three: these only ever touch the caller's own

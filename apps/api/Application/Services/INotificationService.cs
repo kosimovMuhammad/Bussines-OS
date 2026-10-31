@@ -9,7 +9,7 @@ public interface INotificationService
     Task<PagedResult<NotificationDto>> ListAsync(string userId, QueryNotificationsRequest query, CancellationToken cancellationToken = default);
     Task<NotificationDto> GetAsync(string userId, string id, CancellationToken cancellationToken = default);
     Task<int> GetUnreadCountAsync(string userId, CancellationToken cancellationToken = default);
-    Task<NotificationDto> CreateAsync(string companyId, CreateNotificationRequest request, CancellationToken cancellationToken = default);
+    Task<NotificationDto> CreateAsync(string companyId, string actorUserId, CreateNotificationRequest request, CancellationToken cancellationToken = default);
     Task MarkReadAsync(string userId, string id, CancellationToken cancellationToken = default);
     Task MarkAllReadAsync(string userId, CancellationToken cancellationToken = default);
     Task DeleteAsync(string userId, string id, CancellationToken cancellationToken = default);
