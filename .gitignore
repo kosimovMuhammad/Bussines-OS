@@ -1,9 +1,26 @@
-node_modules/
-dist/
-.env
-*.log
-
+# .NET build output
 bin/
 obj/
+TestResults/
 *.user
 .vs/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Secrets and local config (use dotnet user-secrets / environment variables)
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.pem
+
+# Local runtime data
+App_Data/
+*.log
+logs/
+
+# Claude Code local settings
+.claude/settings.local.json
