@@ -5,9 +5,12 @@ using BusinessOS.Application;
 using BusinessOS.Infrastructure;
 using BusinessOS.Infrastructure.Realtime;
 using BusinessOS.WebApi.Authorization;
+using BusinessOS.WebApi.Health;
 using BusinessOS.WebApi.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -99,6 +102,10 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 });
 
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+    .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -151,6 +158,13 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<TenantContextMiddleware>();
 app.UseAuthorization();
+
+// /health/live: process is up (no dependencies - use for restarts). /health: ready to serve, i.e. the
+// database answers (use for uptime monitors / load balancers). Anonymous on purpose; no sensitive data.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = c => c.Tags.Contains("live"), ResponseWriter = HealthResponseWriter.WriteAsync })
+    .AllowAnonymous();
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") || c.Tags.Contains("live"), ResponseWriter = HealthResponseWriter.WriteAsync })
+    .AllowAnonymous();
 
 app.MapControllers();
 app.MapHub<MessagingHub>("/hubs/messaging");
