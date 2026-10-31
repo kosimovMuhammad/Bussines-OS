@@ -12,6 +12,20 @@ public class QueuedHostedService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            await RunLoopAsync(stoppingToken);
+        }
+        // Host shutdown (or a failed startup, e.g. port in use, which disposes the host) cancels
+        // stoppingToken - that's a normal exit, not a service fault that should trip StopHost.
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException
+                                   && stoppingToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task RunLoopAsync(CancellationToken stoppingToken)
+    {
         while (!stoppingToken.IsCancellationRequested)
         {
             var workItem = await taskQueue.DequeueAsync(stoppingToken);

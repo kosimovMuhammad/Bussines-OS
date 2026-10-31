@@ -16,6 +16,20 @@ public class SubscriptionInvoicingHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            await RunLoopAsync(stoppingToken);
+        }
+        // Host shutdown (or a failed startup, e.g. port in use, which disposes the host) cancels
+        // stoppingToken - that's a normal exit, not a service fault that should trip StopHost.
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException
+                                   && stoppingToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task RunLoopAsync(CancellationToken stoppingToken)
+    {
         using var timer = new PeriodicTimer(TickInterval);
 
         while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
