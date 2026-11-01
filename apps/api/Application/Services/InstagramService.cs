@@ -349,10 +349,18 @@ public class InstagramService(
             a => a.InstagramBusinessAccountId == accountId && a.IsActive, cancellationToken);
         if (account is null)
         {
-            logger.LogWarning(
-                "Instagram webhook: no active InstagramAccount matches entry.id {AccountId}; dropping event. " +
-                "If the account was connected before the professional-id fix, reconnect it (or restart the API to backfill).",
-                accountId);
+            if (string.IsNullOrEmpty(accountId))
+            {
+                // Neither entry.id nor recipient.id present: the payload is malformed.
+                logger.LogWarning("Instagram webhook: event has no entry.id or recipient.id; dropping event");
+            }
+            else
+            {
+                // Expected and harmless: Meta also delivers events for other accounts authorized
+                // on the app (e.g. the test account that sent the DM) which are not connected here.
+                logger.LogDebug("Instagram webhook: no active InstagramAccount matches entry.id {AccountId}; dropping event", accountId);
+            }
+
             return null;
         }
 
