@@ -19,4 +19,10 @@ public class WhatsAppPlatformOptions
     // Facebook Login for Business configuration id ("WhatsApp Embedded Signup" variation) that
     // the frontend passes as FB.login's config_id - WHATSAPP_ES_CONFIG_ID.
     public string EmbeddedSignupConfigurationId { get; set; } = string.Empty;
+
+    // Master switch (WHATSAPP_EMBEDDED_SIGNUP_ENABLED, default false). While the Meta app is not yet
+    // eligible to onboard customers (Tech Provider / business verification pending), the config
+    // endpoint answers not_configured and the UI shows a "coming soon" state. All Embedded Signup
+    // code stays in place; flip this to true once Meta unblocks the app (docs/WHATSAPP_STATUS.md).
+    public bool EmbeddedSignupEnabled { get; set; }
 }

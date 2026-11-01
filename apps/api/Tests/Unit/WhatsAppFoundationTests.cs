@@ -233,27 +233,14 @@ public class MetaWhatsAppClientGraphTests
     }
 
     [Fact]
-    public async Task ExchangeCode_RedirectUriError_RetriesOnceWithEmptyRedirectUri()
+    public async Task ExchangeCode_RedirectUriError_IsNotRetried()
     {
-        var handler = new SequenceHandler(
-            (HttpStatusCode.BadRequest, RedirectUriError),
-            (HttpStatusCode.OK, """{"access_token":"tok"}"""));
-
-        var result = await BuildSequence(handler).ExchangeCodeAsync("code-1");
-
-        Assert.Equal("tok", result.AccessToken);
-        Assert.Equal(2, handler.Uris.Count);
-        Assert.Contains("redirect_uri=&", handler.Uris[1].Query + "&");
-    }
-
-    [Fact]
-    public async Task ExchangeCode_RedirectUriErrorTwice_Throws_AfterExactlyTwoCalls()
-    {
+        // Live test: no redirect_uri variant rescues a rejected code, so exactly one call is made.
         var handler = new SequenceHandler((HttpStatusCode.BadRequest, RedirectUriError));
 
         await Assert.ThrowsAsync<WhatsAppApiException>(() => BuildSequence(handler).ExchangeCodeAsync("code-1"));
 
-        Assert.Equal(2, handler.Uris.Count);
+        Assert.Single(handler.Uris);
     }
 
     [Fact]

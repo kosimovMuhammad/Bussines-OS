@@ -25,7 +25,7 @@ public class WhatsAppOnboardingTests
         public Company Company { get; }
         public User User { get; }
 
-        public Fixture(string configurationId = "cfg-1")
+        public Fixture(string configurationId = "cfg-1", bool enabled = true)
         {
             Company = new Company { Name = "Acme" };
             Db.Context.Companies.Add(Company);
@@ -34,7 +34,7 @@ public class WhatsAppOnboardingTests
 
             Service = new WhatsAppOnboardingService(
                 Db.Context, Client, Cipher, State, new AuditLogService(Db.Context),
-                Options.Create(new WhatsAppPlatformOptions { AppId = AppId, EmbeddedSignupConfigurationId = configurationId }),
+                Options.Create(new WhatsAppPlatformOptions { AppId = AppId, EmbeddedSignupConfigurationId = configurationId, EmbeddedSignupEnabled = enabled }),
                 NullLogger<WhatsAppOnboardingService>.Instance);
 
             // Defaults: a valid token for this app that can reach waba-1 only.
@@ -115,6 +115,17 @@ public class WhatsAppOnboardingTests
         var ex = await Fails(Task.Run(() => f.Service.GetConfig(f.User.Id, f.Company.Id, null)));
         Assert.Equal(("not_configured", 503), (ex.Code, ex.StatusCode));
     }
+
+    [Fact]
+    public async Task GetConfig_WhenFlagDisabled_IsNotConfigured503_EvenIfEverythingElseIsSet()
+    {
+        using var f = new Fixture(enabled: false);
+        var ex = await Fails(Task.Run(() => f.Service.GetConfig(f.User.Id, f.Company.Id, null)));
+        Assert.Equal(("not_configured", 503), (ex.Code, ex.StatusCode));
+    }
+
+    [Fact]
+    public void EmbeddedSignupEnabled_DefaultsToFalse() => Assert.False(new WhatsAppPlatformOptions().EmbeddedSignupEnabled);
 
     // ---- coexistence (the first live test) ----------------------------------------------------
 

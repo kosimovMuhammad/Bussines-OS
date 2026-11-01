@@ -38,7 +38,7 @@ public class WhatsAppOnboardingService(
     public WhatsAppEmbeddedSignupConfigDto GetConfig(string userId, string companyId, string? locale)
     {
         var o = options.Value;
-        if (string.IsNullOrWhiteSpace(o.AppId) || string.IsNullOrWhiteSpace(o.EmbeddedSignupConfigurationId))
+        if (!o.EmbeddedSignupEnabled || string.IsNullOrWhiteSpace(o.AppId) || string.IsNullOrWhiteSpace(o.EmbeddedSignupConfigurationId))
         {
             throw WhatsAppOnboardingErrors.Create(WhatsAppOnboardingErrors.NotConfigured);
         }

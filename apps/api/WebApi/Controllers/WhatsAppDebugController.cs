@@ -1,4 +1,6 @@
 using System.Text.Json;
+using BusinessOS.Application.Constants;
+using BusinessOS.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +11,7 @@ namespace BusinessOS.WebApi.Controllers;
 [ApiController]
 [Route("whatsapp/embedded-signup/debug")]
 [Authorize]
+[RequireModule(ModuleName.WhatsApp)] // the permission filter fails closed (403) on routes without a module
 public class WhatsAppDebugController(IWebHostEnvironment environment, ILogger<WhatsAppDebugController> logger) : ControllerBase
 {
     private static readonly string[] SensitiveKeys = ["code", "access_token", "accesstoken", "token", "secret", "state", "password"];
