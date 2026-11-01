@@ -25,20 +25,14 @@ public class WhatsAppService(
         return accounts.Select(ToDto).ToList();
     }
 
-    // Legacy manual-paste path - kept as a fallback, but HandleEmbeddedSignupAsync below is the
-    // flow the frontend should actually drive (see IWhatsAppClient for why: Embedded Signup
-    // never exposes a raw token to the user).
-    public async Task<WhatsAppAccountDto> ConnectAccountAsync(string companyId, ConnectWhatsAppAccountRequest request, CancellationToken cancellationToken = default)
-    {
-        var account = await UpsertAccountAsync(
-            companyId, request.PhoneNumberId, request.WabaId, request.AccessToken, request.VerifiedName, null, cancellationToken);
-        return ToDto(account);
-    }
-
     // WhatsApp Embedded Signup (mirrors InstagramService.HandleOAuthCallbackAsync): unlike the
     // Instagram flow this never leaves the current page (no browser redirect/state param - the
     // code comes straight from the frontend's FB.login() popup callback), so it's just a normal
-    // authenticated endpoint, not an anonymous OAuth callback.
+    // authenticated endpoint, not an anonymous OAuth callback. The manual paste-a-token connect
+    // path no longer exists: a user never types an id or token.
+    //
+    // NOTE (to be replaced in Phase 2): this still trusts the browser-reported ids; the reworked
+    // flow derives them from the token via IWhatsAppClient.DebugTokenAsync / GetWabaPhoneNumbersAsync.
     public async Task<WhatsAppAccountDto> HandleEmbeddedSignupAsync(string companyId, HandleWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default)
     {
         var shortLived = await client.ExchangeCodeAsync(request.Code, cancellationToken);
@@ -50,33 +44,34 @@ public class WhatsAppService(
         return ToDto(account);
     }
 
-    public async Task<WhatsAppAccountDto> UpdateAccountAsync(string companyId, string actorUserId, string id, UpdateWhatsAppAccountRequest request, CancellationToken cancellationToken = default)
-    {
-        var account = await db.WhatsAppAccounts.SingleOrDefaultAsync(a => a.Id == id && a.CompanyId == companyId, cancellationToken)
-            ?? throw new NotFoundException("WhatsApp account not found");
-
-        if (request.VerifiedName is not null) account.VerifiedName = request.VerifiedName;
-        if (request.IsActive is not null) account.IsActive = request.IsActive.Value;
-        account.UpdatedAt = DateTime.UtcNow;
-
-        auditLog.Log(companyId, actorUserId, "whatsapp_account.updated", "WhatsAppAccount", id, new { request.VerifiedName, request.IsActive });
-        await db.SaveChangesAsync(cancellationToken);
-        return ToDto(account);
-    }
-
-    // Soft-delete (IsActive = false) rather than a hard delete - IsActive already exists on
-    // WhatsAppAccount and is exactly this "disconnected" flag (WhatsAppTokenRefreshService and
-    // SendAsync both already skip inactive accounts), so no new column is needed and historical
-    // Communications rows sent through this account keep resolving.
+    // Hard delete (matches Instagram): removes the stored encrypted token and frees the globally
+    // unique PhoneNumberId so the number can be connected again, by this or another company.
+    // Contacts and Communications belong to the company, not to the connection, and nothing
+    // references the account row, so message history is untouched.
     public async Task RemoveAccountAsync(string companyId, string actorUserId, string id, CancellationToken cancellationToken = default)
     {
         var account = await db.WhatsAppAccounts.SingleOrDefaultAsync(a => a.Id == id && a.CompanyId == companyId, cancellationToken)
             ?? throw new NotFoundException("WhatsApp account not found");
 
-        account.IsActive = false;
-        account.UpdatedAt = DateTime.UtcNow;
+        // Best-effort: stop Meta from delivering this WABA's webhooks to us - but only when no
+        // other connected number shares the WABA, otherwise we'd silence the sibling number too.
+        // A failure here (token already revoked, Meta down, key rotated) must never block the
+        // disconnect itself.
+        var wabaStillInUse = await db.WhatsAppAccounts.AnyAsync(a => a.WabaId == account.WabaId && a.Id != account.Id, cancellationToken);
+        if (!wabaStillInUse)
+        {
+            try
+            {
+                await client.UnsubscribeWebhookAsync(tokenCipher.Decrypt(account.EncryptedAccessToken), account.WabaId, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "WhatsApp webhook unsubscribe failed for WABA {WabaId}; removing the account anyway", account.WabaId);
+            }
+        }
 
-        auditLog.Log(companyId, actorUserId, "whatsapp_account.disconnected", "WhatsAppAccount", id, new { account.PhoneNumberId });
+        db.WhatsAppAccounts.Remove(account);
+        auditLog.Log(companyId, actorUserId, "whatsapp_account.disconnected", "WhatsAppAccount", id, new { account.PhoneNumberId, account.WabaId });
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -287,5 +282,7 @@ public class WhatsAppService(
         }
     }
 
-    private static WhatsAppAccountDto ToDto(WhatsAppAccount a) => new(a.Id, a.CompanyId, a.PhoneNumberId, a.WabaId, a.VerifiedName, a.IsActive, a.TokenExpiresAt, a.CreatedAt);
+    private static WhatsAppAccountDto ToDto(WhatsAppAccount a) => new(
+        a.Id, a.CompanyId, a.PhoneNumberId, a.WabaId, a.VerifiedName, a.DisplayPhoneNumber, a.IsActive, a.IsOnBizApp,
+        a.ConnectionStatus, a.HistorySyncStatus, a.OnboardedAt, a.TokenExpiresAt, a.CreatedAt);
 }

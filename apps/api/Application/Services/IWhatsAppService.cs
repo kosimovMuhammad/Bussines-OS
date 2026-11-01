@@ -5,9 +5,7 @@ namespace BusinessOS.Application.Services;
 public interface IWhatsAppService
 {
     Task<IReadOnlyList<WhatsAppAccountDto>> ListAccountsAsync(string companyId, CancellationToken cancellationToken = default);
-    Task<WhatsAppAccountDto> ConnectAccountAsync(string companyId, ConnectWhatsAppAccountRequest request, CancellationToken cancellationToken = default);
     Task<WhatsAppAccountDto> HandleEmbeddedSignupAsync(string companyId, HandleWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default);
-    Task<WhatsAppAccountDto> UpdateAccountAsync(string companyId, string actorUserId, string id, UpdateWhatsAppAccountRequest request, CancellationToken cancellationToken = default);
     Task RemoveAccountAsync(string companyId, string actorUserId, string id, CancellationToken cancellationToken = default);
     Task SendAsync(string companyId, SendWhatsAppRequest request, CancellationToken cancellationToken = default);
     Task ProcessIncomingMessageAsync(IncomingWhatsAppMessage message, CancellationToken cancellationToken = default);

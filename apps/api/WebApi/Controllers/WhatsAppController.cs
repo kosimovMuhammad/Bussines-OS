@@ -17,9 +17,7 @@ namespace BusinessOS.WebApi.Controllers;
 public class WhatsAppController(
     IWhatsAppService whatsAppService,
     ICurrentUserContext currentUser,
-    IValidator<ConnectWhatsAppAccountRequest> connectValidator,
     IValidator<HandleWhatsAppEmbeddedSignupRequest> embeddedSignupValidator,
-    IValidator<UpdateWhatsAppAccountRequest> updateAccountValidator,
     IValidator<SendWhatsAppRequest> sendValidator,
     IValidator<SendPlatformWhatsAppTextRequest> sendPlatformTextValidator,
     IValidator<SendPlatformWhatsAppTemplateRequest> sendPlatformTemplateValidator) : ControllerBase
@@ -28,21 +26,8 @@ public class WhatsAppController(
     public async Task<IActionResult> ListAccounts(CancellationToken ct) =>
         Ok(await whatsAppService.ListAccountsAsync(currentUser.CompanyId!, ct));
 
-    [HttpPost("accounts")]
-    [Authorize ]
-    public async Task<IActionResult> ConnectAccount(ConnectWhatsAppAccountRequest request, CancellationToken ct)
-    {
-        await connectValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await whatsAppService.ConnectAccountAsync(currentUser.CompanyId!, request, ct));
-    }
-
-    [HttpPatch("accounts/{id}")]
-    public async Task<IActionResult> UpdateAccount(string id, UpdateWhatsAppAccountRequest request, CancellationToken ct)
-    {
-        await updateAccountValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await whatsAppService.UpdateAccountAsync(currentUser.CompanyId!, currentUser.UserId!, id, request, ct));
-    }
-
+    // There is deliberately no POST/PATCH on /accounts: accounts are created only by Meta
+    // Embedded Signup (below) - users never type a phone_number_id, WABA id or token.
     [HttpDelete("accounts/{id}")]
     public async Task<IActionResult> RemoveAccount(string id, CancellationToken ct)
     {

@@ -43,6 +43,12 @@ Instagram (`INSTAGRAM_*`), WhatsApp (`WHATSAPP_*`), Microsoft (`MICROSOFT_*`), G
 S3 (`AWS_*`), SMTP (`EmailSettings:*`). The full list with comments is in
 `apps/api/WebApi/user-secrets.example.json` and `.env.example`.
 
+WhatsApp is connected only through Meta Embedded Signup (no IDs or tokens are typed by users). Once any
+`WHATSAPP_*` key is set the app requires `WHATSAPP_APP_ID`, `WHATSAPP_APP_SECRET` (the **main** Meta app's
+secret, not the Instagram app's), `WHATSAPP_VERIFY_TOKEN` (>= 16 chars) and an `https://` `PUBLIC_URL`.
+`WHATSAPP_ES_CONFIG_ID` is the Facebook Login for Business configuration id; `WHATSAPP_API_VERSION`
+(default `v26.0`) is the single Graph version used for every WhatsApp call.
+
 ### Production
 
 Set the same keys as environment variables. Nested keys use a double underscore:

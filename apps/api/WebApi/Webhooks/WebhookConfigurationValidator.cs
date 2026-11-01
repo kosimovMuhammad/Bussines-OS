@@ -10,6 +10,8 @@ public static class WebhookConfigurationValidator
 {
     public const int MinSecretLength = 16;
 
+    private static readonly System.Text.RegularExpressions.Regex ApiVersionPattern = new(@"^v\d+\.\d+$");
+
     public static IReadOnlyList<string> Validate(IConfiguration configuration)
     {
         var errors = new List<string>();
@@ -27,10 +29,28 @@ public static class WebhookConfigurationValidator
             }
         }
 
-        if (AnySet(configuration, "WHATSAPP_APP_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN"))
+        if (AnySet(configuration, "WHATSAPP_APP_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_ES_CONFIG_ID"))
         {
-            RequireStrong(configuration, errors, "WHATSAPP_APP_SECRET", MinSecretLength, "Meta app secret (verifies webhook signatures)");
+            // WHATSAPP_APP_ID is used for the Embedded Signup code exchange and debug_token; the
+            // secret both signs webhooks and authenticates those calls, so it must be the MAIN Meta
+            // app's secret (not the Instagram app's, which signs Instagram webhooks only).
+            RequireStrong(configuration, errors, "WHATSAPP_APP_ID", 1, "Meta app ID of the app that owns the WhatsApp product (Embedded Signup)");
+            RequireStrong(configuration, errors, "WHATSAPP_APP_SECRET", MinSecretLength, "Meta app secret (verifies webhook signatures and exchanges the Embedded Signup code)");
             RequireStrong(configuration, errors, "WHATSAPP_VERIFY_TOKEN", MinSecretLength, "webhook verify token you also enter in the Meta dashboard");
+
+            var publicUrl = configuration["PUBLIC_URL"];
+            if (!string.IsNullOrEmpty(publicUrl) && !publicUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add("PUBLIC_URL must start with https:// when WhatsApp is configured - Meta only accepts HTTPS webhook callbacks");
+            }
+
+            // A typo like "26.0" or "latest" would otherwise only surface as an opaque Graph 400 on
+            // the first onboarding or send.
+            var apiVersion = configuration["WHATSAPP_API_VERSION"];
+            if (!string.IsNullOrWhiteSpace(apiVersion) && !ApiVersionPattern.IsMatch(apiVersion))
+            {
+                errors.Add("WHATSAPP_API_VERSION must look like v26.0 (leave it unset to use the default)");
+            }
         }
 
         return errors;

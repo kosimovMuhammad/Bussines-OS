@@ -75,13 +75,7 @@ public class FakeWhatsAppService : IWhatsAppService
     public Task<IReadOnlyList<WhatsAppAccountDto>> ListAccountsAsync(string companyId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<WhatsAppAccountDto>>([]);
 
-    public Task<WhatsAppAccountDto> ConnectAccountAsync(string companyId, ConnectWhatsAppAccountRequest request, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
-
     public Task<WhatsAppAccountDto> HandleEmbeddedSignupAsync(string companyId, HandleWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
-
-    public Task<WhatsAppAccountDto> UpdateAccountAsync(string companyId, string actorUserId, string id, UpdateWhatsAppAccountRequest request, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not needed in unit tests");
 
     public Task RemoveAccountAsync(string companyId, string actorUserId, string id, CancellationToken cancellationToken = default) =>
@@ -185,6 +179,30 @@ public class FakeWhatsAppClient : IWhatsAppClient
         throw new NotSupportedException("Not needed in unit tests");
 
     public Task SubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public List<string> UnsubscribedWabaIds { get; } = [];
+    public Exception? NextUnsubscribeException { get; set; }
+
+    public Task UnsubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default)
+    {
+        UnsubscribedWabaIds.Add(wabaId);
+        return NextUnsubscribeException is not null ? throw NextUnsubscribeException : Task.CompletedTask;
+    }
+
+    public Task<WhatsAppTokenInfo> DebugTokenAsync(string inputToken, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not needed in unit tests");
+
+    public Task<IReadOnlyList<WhatsAppPhoneNumberInfo>> GetWabaPhoneNumbersAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not needed in unit tests");
+
+    public Task<WhatsAppPhoneNumberInfo> GetPhoneNumberAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not needed in unit tests");
+
+    public Task RegisterPhoneNumberAsync(string accessToken, string phoneNumberId, string pin, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not needed in unit tests");
+
+    public Task<string?> RequestSmbAppDataSyncAsync(string accessToken, string phoneNumberId, string syncType, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not needed in unit tests");
 
     public Task<string?> GetVerifiedNameAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);

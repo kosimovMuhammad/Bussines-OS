@@ -81,6 +81,7 @@ public static class DependencyInjection
         {
             options.PhoneNumberId = configuration["WHATSAPP_PHONE_NUMBER_ID"] ?? string.Empty;
             options.ApiVersion = configuration["WHATSAPP_API_VERSION"] is { Length: > 0 } apiVersion ? apiVersion : options.ApiVersion;
+            options.EmbeddedSignupConfigurationId = configuration["WHATSAPP_ES_CONFIG_ID"] ?? string.Empty;
         });
         services.AddSingleton<IWhatsAppClient, MetaWhatsAppClient>();
         services.AddSingleton<ITelegramApiClient, TelegramApiClient>();

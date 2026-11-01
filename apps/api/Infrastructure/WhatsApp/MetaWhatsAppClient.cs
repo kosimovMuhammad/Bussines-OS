@@ -20,7 +20,10 @@ public class MetaWhatsAppClient(
     IConfiguration configuration,
     ILogger<MetaWhatsAppClient> logger) : IWhatsAppClient
 {
-    private const string TenantApiVersion = "v20.0";
+    private const string GraphBaseUrl = "https://graph.facebook.com";
+
+    // One configured version for every call (WHATSAPP_API_VERSION, default in WhatsAppPlatformOptions).
+    private string ApiVersion => platformOptions.Value.ApiVersion;
 
     public Task<WhatsAppOAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default) =>
         GetOAuthTokenAsync(new Dictionary<string, string>
@@ -54,7 +57,7 @@ public class MetaWhatsAppClient(
         string body;
         try
         {
-            response = await client.GetAsync($"https://graph.facebook.com/{TenantApiVersion}/oauth/access_token?{query}", cancellationToken);
+            response = await client.GetAsync($"https://graph.facebook.com/{ApiVersion}/oauth/access_token?{query}", cancellationToken);
             body = await response.Content.ReadAsStringAsync(cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
@@ -86,32 +89,198 @@ public class MetaWhatsAppClient(
         }
     }
 
-    public async Task SubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default)
+    public Task SubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default) =>
+        GraphAsync(HttpMethod.Post, $"{wabaId}/subscribed_apps", accessToken, null, "SubscribeWebhook", cancellationToken);
+
+    public Task UnsubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default) =>
+        GraphAsync(HttpMethod.Delete, $"{wabaId}/subscribed_apps", accessToken, null, "UnsubscribeWebhook", cancellationToken);
+
+    public async Task<WhatsAppTokenInfo> DebugTokenAsync(string inputToken, CancellationToken cancellationToken = default)
+    {
+        // The app access token is "{app_id}|{app_secret}"; sent as a Bearer header so it never
+        // lands in a URL. input_token (the token under inspection) has to be a query parameter.
+        var appToken = $"{configuration["WHATSAPP_APP_ID"]}|{configuration["WHATSAPP_APP_SECRET"]}";
+        var body = await GraphAsync(HttpMethod.Get, $"debug_token?input_token={Uri.EscapeDataString(inputToken)}", appToken, null, "DebugToken", cancellationToken);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+            {
+                throw new ExternalServiceException("WhatsApp API returned an unexpected debug_token response");
+            }
+
+            var isValid = data.TryGetProperty("is_valid", out var valid) && valid.ValueKind == JsonValueKind.True;
+            var appId = ReadString(data, "app_id");
+            var userId = ReadString(data, "user_id");
+
+            // expires_at = 0 means "never expires" -> null, so callers can tell it apart from a real date.
+            DateTime? expiresAt = null;
+            if (data.TryGetProperty("expires_at", out var exp) && exp.ValueKind == JsonValueKind.Number && exp.GetInt64() > 0)
+            {
+                expiresAt = DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64()).UtcDateTime;
+            }
+
+            var scopes = new List<WhatsAppGranularScope>();
+            if (data.TryGetProperty("granular_scopes", out var granular) && granular.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in granular.EnumerateArray())
+                {
+                    var scope = ReadString(entry, "scope");
+                    if (scope is null)
+                    {
+                        continue;
+                    }
+
+                    var targets = new List<string>();
+                    if (entry.TryGetProperty("target_ids", out var ids) && ids.ValueKind == JsonValueKind.Array)
+                    {
+                        // Meta returns these as strings, but tolerate numbers rather than dropping the asset.
+                        targets.AddRange(ids.EnumerateArray()
+                            .Select(i => i.ValueKind == JsonValueKind.String ? i.GetString() : i.ToString())
+                            .Where(i => !string.IsNullOrWhiteSpace(i))!);
+                    }
+
+                    scopes.Add(new WhatsAppGranularScope(scope, targets));
+                }
+            }
+
+            return new WhatsAppTokenInfo(isValid, appId, userId, expiresAt, scopes);
+        }
+        catch (JsonException)
+        {
+            throw new ExternalServiceException("WhatsApp API returned an unexpected debug_token response");
+        }
+    }
+
+    private const string PhoneNumberFields = "id,display_phone_number,verified_name,platform_type,is_on_biz_app,status";
+
+    public async Task<IReadOnlyList<WhatsAppPhoneNumberInfo>> GetWabaPhoneNumbersAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default)
+    {
+        var body = await GraphAsync(HttpMethod.Get, $"{wabaId}/phone_numbers?fields={PhoneNumberFields}&limit=100", accessToken, null, "GetWabaPhoneNumbers", cancellationToken);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            return data.EnumerateArray().Select(ParsePhoneNumber).Where(p => p is not null).Select(p => p!).ToList();
+        }
+        catch (JsonException)
+        {
+            throw new ExternalServiceException("WhatsApp API returned an unexpected phone_numbers response");
+        }
+    }
+
+    public async Task<WhatsAppPhoneNumberInfo> GetPhoneNumberAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default)
+    {
+        var body = await GraphAsync(HttpMethod.Get, $"{phoneNumberId}?fields={PhoneNumberFields}", accessToken, null, "GetPhoneNumber", cancellationToken);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return ParsePhoneNumber(doc.RootElement)
+                ?? throw new ExternalServiceException("WhatsApp API returned an unexpected phone number response");
+        }
+        catch (JsonException)
+        {
+            throw new ExternalServiceException("WhatsApp API returned an unexpected phone number response");
+        }
+    }
+
+    public Task RegisterPhoneNumberAsync(string accessToken, string phoneNumberId, string pin, CancellationToken cancellationToken = default) =>
+        GraphAsync(HttpMethod.Post, $"{phoneNumberId}/register", accessToken,
+            new { messaging_product = "whatsapp", pin }, "RegisterPhoneNumber", cancellationToken);
+
+    public async Task<string?> RequestSmbAppDataSyncAsync(string accessToken, string phoneNumberId, string syncType, CancellationToken cancellationToken = default)
+    {
+        var body = await GraphAsync(HttpMethod.Post, $"{phoneNumberId}/smb_app_data", accessToken,
+            new { messaging_product = "whatsapp", sync_type = syncType }, "RequestSmbAppDataSync", cancellationToken);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return ReadString(doc.RootElement, "request_id");
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static WhatsAppPhoneNumberInfo? ParsePhoneNumber(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var id = ReadString(element, "id");
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        bool? isOnBizApp = element.TryGetProperty("is_on_biz_app", out var biz) && biz.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? biz.GetBoolean()
+            : null;
+
+        return new WhatsAppPhoneNumberInfo(
+            id, ReadString(element, "display_phone_number"), ReadString(element, "verified_name"),
+            ReadString(element, "platform_type"), isOnBizApp, ReadString(element, "status"));
+    }
+
+    private static string? ReadString(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value)
+            ? value.ValueKind == JsonValueKind.String ? value.GetString() : value.ValueKind == JsonValueKind.Number ? value.ToString() : null
+            : null;
+
+    // Shared Graph call for the onboarding endpoints (the send path keeps its own SendAsync, which
+    // has send-specific logging). Throws WhatsAppApiException - carrying Meta's error code and
+    // fbtrace_id - on a non-2xx, so callers can map specific onboarding errors (e.g. 133016
+    // register rate limit, 3441045 ineligible number) instead of showing a generic failure.
+    // Neither the access token nor the response body is ever logged.
+    private async Task<string> GraphAsync(HttpMethod method, string path, string bearerToken, object? jsonBody, string operation, CancellationToken cancellationToken)
     {
         var client = httpClientFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(10);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var request = new HttpRequestMessage(method, $"{GraphBaseUrl}/{ApiVersion}/{path}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        if (jsonBody is not null)
+        {
+            request.Content = JsonContent.Create(jsonBody);
+        }
 
         HttpResponseMessage response;
         string body;
         try
         {
-            response = await client.PostAsync($"https://graph.facebook.com/{TenantApiVersion}/{wabaId}/subscribed_apps", null, cancellationToken);
+            response = await client.SendAsync(request, cancellationToken);
             body = await response.Content.ReadAsStringAsync(cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(ex, "WhatsApp API request 'SubscribeWebhook' failed to complete");
-            throw new ExternalServiceException("WhatsApp API request timed out or is unreachable");
+            logger.LogWarning(ex, "WhatsApp API request '{Operation}' failed to complete", operation);
+            throw new ExternalServiceException("WhatsApp API request timed out or is unreachable") { IsTimeout = true };
         }
 
         if (!response.IsSuccessStatusCode)
         {
             var (errorMessage, errorCode, fbTraceId) = ParseMetaError(body);
-            logger.LogWarning("WhatsApp API rejected SubscribeWebhook: status={StatusCode} code={Code} fbtrace_id={FbTraceId}",
-                (int)response.StatusCode, errorCode, fbTraceId);
-            throw new ExternalServiceException(errorMessage ?? $"WhatsApp API request 'SubscribeWebhook' failed: {response.StatusCode}");
+            logger.LogWarning("WhatsApp API rejected {Operation}: status={StatusCode} code={Code} fbtrace_id={FbTraceId}",
+                operation, (int)response.StatusCode, errorCode, fbTraceId);
+            throw new WhatsAppApiException(errorMessage ?? $"WhatsApp API request '{operation}' failed: {response.StatusCode}", errorCode, fbTraceId)
+            {
+                ProviderStatusCode = (int)response.StatusCode,
+                RetryAfterSeconds = response.Headers.RetryAfter?.Delta is { } delta ? (int)delta.TotalSeconds : null,
+            };
         }
+
+        return body;
     }
 
     public async Task<string?> GetVerifiedNameAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default)
@@ -123,7 +292,7 @@ public class MetaWhatsAppClient(
         HttpResponseMessage response;
         try
         {
-            response = await client.GetAsync($"https://graph.facebook.com/{TenantApiVersion}/{phoneNumberId}?fields=verified_name", cancellationToken);
+            response = await client.GetAsync($"https://graph.facebook.com/{ApiVersion}/{phoneNumberId}?fields=verified_name", cancellationToken);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
@@ -149,7 +318,7 @@ public class MetaWhatsAppClient(
 
     public Task<string?> SendTextMessageAsync(string phoneNumberId, string accessToken, string to, string message, CancellationToken cancellationToken = default)
     {
-        return SendAsync(WhatsAppSenderMode.Tenant, accessToken, phoneNumberId, TenantApiVersion, new
+        return SendAsync(WhatsAppSenderMode.Tenant, accessToken, phoneNumberId, ApiVersion, new
         {
             messaging_product = "whatsapp",
             to,

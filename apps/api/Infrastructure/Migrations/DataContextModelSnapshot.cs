@@ -3349,23 +3349,55 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<string>("BusinessId")
+                        .HasColumnType("text")
+                        .HasColumnName("businessId");
+
                     b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("companyId");
 
+                    b.Property<string>("ConnectedByFbUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("connectedByFbUserId");
+
+                    b.Property<int>("ConnectionStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("connectionStatus");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("createdAt");
+
+                    b.Property<string>("DisplayPhoneNumber")
+                        .HasColumnType("text")
+                        .HasColumnName("displayPhoneNumber");
 
                     b.Property<string>("EncryptedAccessToken")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("encryptedAccessToken");
 
+                    b.Property<string>("EncryptedRegistrationPin")
+                        .HasColumnType("text")
+                        .HasColumnName("encryptedRegistrationPin");
+
+                    b.Property<int>("HistorySyncStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("historySyncStatus");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("isActive");
+
+                    b.Property<bool>("IsOnBizApp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("isOnBizApp");
+
+                    b.Property<DateTime?>("OnboardedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("onboardedAt");
 
                     b.Property<string>("PhoneNumberId")
                         .IsRequired()
