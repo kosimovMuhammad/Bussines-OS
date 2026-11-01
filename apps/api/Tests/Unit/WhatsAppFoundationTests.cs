@@ -197,6 +197,76 @@ public class MetaWhatsAppClientGraphTests
         Assert.DoesNotContain("v20.0", request.Uri.ToString());
     }
 
+    private sealed class SequenceHandler(params (HttpStatusCode Status, string Json)[] responses) : HttpMessageHandler
+    {
+        public List<Uri> Uris { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var (status, json) = responses[Math.Min(Uris.Count, responses.Length - 1)];
+            Uris.Add(request.RequestUri!);
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+        }
+    }
+
+    private static MetaWhatsAppClient BuildSequence(SequenceHandler handler)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["WHATSAPP_APP_ID"] = "app-id",
+            ["WHATSAPP_APP_SECRET"] = "app-secret",
+        }).Build();
+        return new MetaWhatsAppClient(new StubFactory(handler), Options.Create(new WhatsAppPlatformOptions()), configuration, NullLogger<MetaWhatsAppClient>.Instance);
+    }
+
+    private const string RedirectUriError = """{"error":{"message":"Error validating verification code. Please make sure your redirect_uri is identical to the one you used in the OAuth dialog request","code":100,"fbtrace_id":"abc"}}""";
+
+    [Fact]
+    public async Task ExchangeCode_FirstAttemptOmitsRedirectUri()
+    {
+        var handler = new SequenceHandler((HttpStatusCode.OK, """{"access_token":"t"}"""));
+
+        await BuildSequence(handler).ExchangeCodeAsync("code-1");
+
+        var uri = Assert.Single(handler.Uris);
+        Assert.DoesNotContain("redirect_uri", uri.Query);
+    }
+
+    [Fact]
+    public async Task ExchangeCode_RedirectUriError_RetriesOnceWithEmptyRedirectUri()
+    {
+        var handler = new SequenceHandler(
+            (HttpStatusCode.BadRequest, RedirectUriError),
+            (HttpStatusCode.OK, """{"access_token":"tok"}"""));
+
+        var result = await BuildSequence(handler).ExchangeCodeAsync("code-1");
+
+        Assert.Equal("tok", result.AccessToken);
+        Assert.Equal(2, handler.Uris.Count);
+        Assert.Contains("redirect_uri=&", handler.Uris[1].Query + "&");
+    }
+
+    [Fact]
+    public async Task ExchangeCode_RedirectUriErrorTwice_Throws_AfterExactlyTwoCalls()
+    {
+        var handler = new SequenceHandler((HttpStatusCode.BadRequest, RedirectUriError));
+
+        await Assert.ThrowsAsync<WhatsAppApiException>(() => BuildSequence(handler).ExchangeCodeAsync("code-1"));
+
+        Assert.Equal(2, handler.Uris.Count);
+    }
+
+    [Fact]
+    public async Task ExchangeCode_OtherError_DoesNotRetry()
+    {
+        var handler = new SequenceHandler((HttpStatusCode.BadRequest,
+            """{"error":{"message":"Invalid client secret","code":101,"fbtrace_id":"x"}}"""));
+
+        await Assert.ThrowsAsync<WhatsAppApiException>(() => BuildSequence(handler).ExchangeCodeAsync("code-1"));
+
+        Assert.Single(handler.Uris);
+    }
+
     [Fact]
     public async Task DebugToken_ParsesGranularScopes_AndTreatsZeroExpiryAsNever()
     {

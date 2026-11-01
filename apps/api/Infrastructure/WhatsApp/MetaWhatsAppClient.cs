@@ -25,13 +25,33 @@ public class MetaWhatsAppClient(
     // One configured version for every call (WHATSAPP_API_VERSION, default in WhatsAppPlatformOptions).
     private string ApiVersion => platformOptions.Value.ApiVersion;
 
-    public Task<WhatsAppOAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default) =>
-        GetOAuthTokenAsync(new Dictionary<string, string>
+    // Meta documents the FB.login code exchange as GET /oauth/access_token with client_id,
+    // client_secret and code only (no redirect_uri). In practice some popup paths (e.g. "Continue
+    // as <user>" with previous settings) mint a code that Meta then rejects with code 100 "Error
+    // validating verification code. Please make sure your redirect_uri is identical...". A JS-SDK
+    // popup code has no page redirect_uri, so the accepted workaround is an EMPTY redirect_uri.
+    // Try the documented form first; only on that specific error retry once with redirect_uri="".
+    public async Task<WhatsAppOAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default)
+    {
+        var parameters = new Dictionary<string, string>
         {
             ["client_id"] = configuration["WHATSAPP_APP_ID"] ?? string.Empty,
             ["client_secret"] = configuration["WHATSAPP_APP_SECRET"] ?? string.Empty,
             ["code"] = code,
-        }, "ExchangeCode", cancellationToken);
+        };
+
+        try
+        {
+            return await GetOAuthTokenAsync(parameters, "ExchangeCode", cancellationToken);
+        }
+        catch (WhatsAppApiException ex) when (ex.MetaErrorCode == "100"
+            && ex.Message.Contains("redirect_uri", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("WhatsApp ExchangeCode rejected without redirect_uri (fbtrace_id={FbTraceId}); retrying once with empty redirect_uri", ex.FbTraceId);
+            parameters["redirect_uri"] = string.Empty;
+            return await GetOAuthTokenAsync(parameters, "ExchangeCode(empty redirect_uri)", cancellationToken);
+        }
+    }
 
     public Task<WhatsAppOAuthTokenResult> ExchangeForLongLivedTokenAsync(string token, CancellationToken cancellationToken = default) =>
         GetOAuthTokenAsync(new Dictionary<string, string>
