@@ -31,13 +31,16 @@ namespace BusinessOS.Infrastructure.Instagram;
 // persisting or looking up InstagramAccount.InstagramBusinessAccountId.
 public class InstagramApiClient(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<InstagramApiClient> logger) : IInstagramApiClient
 {
-    private const string ApiVersion = "v21.0";
+    // Overridable via INSTAGRAM_API_VERSION so a Meta version bump/sunset needs no redeploy.
+    private const string DefaultApiVersion = "v24.0";
     private const string BaseUrl = "https://graph.instagram.com";
 
     // instagram_business_basic covers GetAccountInfoAsync's /me call; instagram_business_manage_messages
     // covers SendMessageAsync/SubscribeWebhookAsync - see the official Instagram-Login-with-Instagram
     // scope list linked in the class comment above.
     private const string Scope = "instagram_business_basic,instagram_business_manage_messages";
+
+    private string ApiVersion => configuration["INSTAGRAM_API_VERSION"] is { Length: > 0 } v ? v : DefaultApiVersion;
 
     public string GetAuthUrl(string state)
     {
@@ -59,7 +62,7 @@ public class InstagramApiClient(IHttpClientFactory httpClientFactory, IConfigura
             ["client_secret"] = configuration["INSTAGRAM_APP_SECRET"] ?? string.Empty,
             ["grant_type"] = "authorization_code",
             ["redirect_uri"] = RedirectUri(),
-            ["code"] = code,
+            ["code"] = InstagramOAuthParser.NormalizeCode(code),
         };
 
         HttpResponseMessage response;
@@ -82,15 +85,8 @@ public class InstagramApiClient(IHttpClientFactory httpClientFactory, IConfigura
 
         try
         {
-            using var doc = JsonDocument.Parse(body);
-            var accessToken = doc.RootElement.GetProperty("access_token").GetString()
-                ?? throw new ExternalServiceException("Instagram API returned an empty access token");
-
-            // Temporary diagnostic - never log accessToken itself (see ThrowForError's comment
-            // on this file for why). Checking whether user_id shows up here instead of /me -
-            // remove once confirmed either way.
-            var userId = doc.RootElement.TryGetProperty("user_id", out var uid) ? uid.ToString() : null;
-            logger.LogInformation("Instagram ExchangeCode raw: user_id={UserId}", userId);
+            // Handles both {"data":[{...}]} (Instagram Login) and the flat legacy shape.
+            var accessToken = InstagramOAuthParser.ParseShortLivedAccessToken(body);
 
             // No expires_in here - this short-lived token (~1 hour) is only ever used to
             // immediately call ExchangeForLongLivedTokenAsync, never stored.
