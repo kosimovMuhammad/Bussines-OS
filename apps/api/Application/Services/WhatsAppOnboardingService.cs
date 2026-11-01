@@ -51,6 +51,23 @@ public class WhatsAppOnboardingService(
     public async Task<WhatsAppConnectResultDto> CompleteAsync(
         string companyId, string userId, CompleteWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default)
     {
+        try
+        {
+            return await CompleteCoreAsync(companyId, userId, request, cancellationToken);
+        }
+        catch (WhatsAppOnboardingException ex)
+        {
+            // The exception middleware does not log 4xx/5xx onboarding errors; this is the one place that
+            // records WHY a connect attempt failed (stable code only - never the code, token or PIN).
+            logger.LogWarning("WhatsApp onboarding FAILED: code={ErrorCode} http={Status} company={CompanyId} user={UserId} event={Event}",
+                ex.Code, ex.StatusCode, companyId, userId, request.Session?.Event);
+            throw;
+        }
+    }
+
+    private async Task<WhatsAppConnectResultDto> CompleteCoreAsync(
+        string companyId, string userId, CompleteWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken)
+    {
         // 1. The state must be ours, fresh, and minted for THIS user in THIS company.
         var state = oauthState.Validate(request.State);
         if (state is null || state.UserId != userId || state.CompanyId != companyId)
@@ -59,6 +76,9 @@ public class WhatsAppOnboardingService(
         }
 
         var session = request.Session;
+        logger.LogInformation(
+            "WhatsApp onboarding [1/7] state valid: company={CompanyId} user={UserId} event={Event} hintedPhoneNumberId={HintedPhoneNumberId}",
+            companyId, userId, request.Session?.Event, request.Session?.PhoneNumberId);
         var signupEvent = session?.Event;
         if (signupEvent == FinishOnlyWabaEvent)
         {
@@ -90,6 +110,8 @@ public class WhatsAppOnboardingService(
             throw WhatsAppOnboardingErrors.FromProvider(ex, WhatsAppOnboardingErrors.CodeExchangeFailed);
         }
 
+        logger.LogInformation("WhatsApp onboarding [2/7] one-time code exchanged for a business token (company={CompanyId})", companyId);
+
         // 3. Ask Meta what this token can actually reach. Nothing the browser reported is trusted.
         var tokenInfo = await CallProviderAsync(() => client.DebugTokenAsync(accessToken, cancellationToken), WhatsAppOnboardingErrors.ProviderError);
         var expectedAppId = options.Value.AppId;
@@ -105,6 +127,11 @@ public class WhatsAppOnboardingService(
         {
             throw WhatsAppOnboardingErrors.Create(WhatsAppOnboardingErrors.NoWabaAccess);
         }
+
+        logger.LogInformation(
+            "WhatsApp onboarding [3/7] token verified: fbUserId={FbUserId} expiresAt={ExpiresAt} grantedWabaIds={GrantedWabaIds} scopes={Scopes}",
+            tokenInfo.UserId, tokenInfo.ExpiresAt?.ToString("O") ?? "never", string.Join(",", grantedWabaIds),
+            string.Join(",", tokenInfo.GranularScopes.Select(s => s.Scope)));
 
         // 4. Resolve the WABA(s): browser hints may only NARROW the granted set, never extend it.
         var hintedWabaIds = (session?.MessagingAccountIds ?? [])
@@ -162,6 +189,10 @@ public class WhatsAppOnboardingService(
 
         var isOnBizApp = details.IsOnBizApp ?? session?.IsOnBizApp ?? signupEvent == FinishBusinessAppEvent;
 
+        logger.LogInformation(
+            "WhatsApp onboarding [4/7] number resolved: phoneNumberId={PhoneNumberId} wabaId={WabaId} isOnBizApp={IsOnBizApp} (meta={MetaFlag}) platformType={PlatformType} status={Status}",
+            details.Id, chosen.WabaId, isOnBizApp, details.IsOnBizApp?.ToString() ?? "omitted", details.PlatformType, details.Status);
+
         // 5. A Meta phone number belongs to exactly one tenant. Check BEFORE touching Meta (register /
         //    subscribe) so a number owned by another company is never modified.
         var takenByAnotherCompany = await db.WhatsAppAccounts.IgnoreQueryFilters()
@@ -207,6 +238,9 @@ public class WhatsAppOnboardingService(
             new { account.PhoneNumberId, account.WabaId, account.IsOnBizApp, Issues = issues });
 
         await SaveAsync(cancellationToken);
+        logger.LogInformation(
+            "WhatsApp onboarding [7/7] saved: accountId={AccountId} phoneNumberId={PhoneNumberId} status={Status} isOnBizApp={IsOnBizApp} historySync={HistorySync} issues=[{Issues}]",
+            account.Id, account.PhoneNumberId, account.ConnectionStatus, account.IsOnBizApp, account.HistorySyncStatus, string.Join(",", issues));
         return new WhatsAppConnectResultDto(WhatsAppService.ToDto(account), issues);
     }
 
@@ -281,6 +315,7 @@ public class WhatsAppOnboardingService(
     {
         if (isOnBizApp)
         {
+            logger.LogInformation("WhatsApp onboarding [5/7] register skipped for {PhoneNumberId}: Coexistence number is already registered", phoneNumberId);
             return null;
         }
 
@@ -302,6 +337,7 @@ public class WhatsAppOnboardingService(
         try
         {
             await client.RegisterPhoneNumberAsync(accessToken, phoneNumberId, pin, cancellationToken);
+            logger.LogInformation("WhatsApp onboarding [5/7] registered {PhoneNumberId} for Cloud API", phoneNumberId);
             return tokenCipher.Encrypt(pin);
         }
         catch (ExternalServiceException ex)
@@ -317,6 +353,7 @@ public class WhatsAppOnboardingService(
         try
         {
             await client.SubscribeWebhookAsync(accessToken, wabaId, cancellationToken);
+            logger.LogInformation("WhatsApp onboarding [6/7] app subscribed to WABA {WabaId}", wabaId);
         }
         catch (ExternalServiceException ex)
         {
