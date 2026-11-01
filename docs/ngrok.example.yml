@@ -1,0 +1,13 @@
+# Example ngrok agent config (ngrok v3). Copy to your real config (Windows: C:\ngrok\ngrok.yml)
+# and fill in the placeholders. NEVER commit the real file - it holds your authtoken.
+#
+# Public URL -> local API. The static domain is what you put in PUBLIC_URL, in the Meta app's
+# redirect URI / webhook callback URL.
+version: "3"
+agent:
+  authtoken: <YOUR_NGROK_AUTHTOKEN>   # dashboard.ngrok.com/get-started/your-authtoken
+endpoints:
+  - name: api
+    url: https://<your-static-domain>.ngrok-free.dev   # dashboard.ngrok.com/domains
+    upstream:
+      url: http://localhost:5129                         # the `http` side of the API launch profile

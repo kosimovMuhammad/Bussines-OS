@@ -77,6 +77,19 @@ dotnet run --project WebApi --launch-profile https
 dotnet test Tests
 ```
 
+### Public HTTPS tunnel (ngrok) for Meta / Google / Microsoft callbacks
+
+Instagram, WhatsApp and the OAuth providers need a public HTTPS URL. Use a static ngrok domain so
+the URL never changes:
+
+1. Install ngrok and claim a free static domain at <https://dashboard.ngrok.com/domains>.
+2. Copy `docs/ngrok.example.yml` to your ngrok config (Windows: `C:\ngrok\ngrok.yml`) and fill in the
+   authtoken and domain. Never commit the real file.
+3. Start it: `ngrok start api`, or install it as a Windows service from an elevated shell:
+   `ngrok service install --config C:\ngrok\ngrok.yml`, then `ngrok service start`.
+4. `dotnet user-secrets set "PUBLIC_URL" "https://<your-static-domain>.ngrok-free.dev"` (no trailing slash).
+5. Check: `https://<your-static-domain>.ngrok-free.dev/health/live` returns healthy.
+
 ### HTTPS in development
 
 Run once to create and trust the ASP.NET Core development certificate: `dotnet dev-certs https --trust`.
