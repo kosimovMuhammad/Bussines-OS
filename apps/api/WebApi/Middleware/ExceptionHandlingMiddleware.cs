@@ -34,6 +34,7 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
             RateLimitedException rl => (429, "Too Many Requests", (object)rl.Message),
             SendRejectedException sr => (422, "Unprocessable Entity", (object)sr.Message),
             ServiceUnavailableException su => (503, "Service Unavailable", (object)su.Message),
+            WhatsAppOnboardingException wo => (wo.StatusCode, StatusTitle(wo.StatusCode), (object)new { code = wo.Code, message = wo.Message }),
             ExternalServiceException es => (502, "Bad Gateway", (object)es.Message),
             _ => (500, "Internal Server Error", (object)"An unexpected error occurred"),
         };
@@ -52,4 +53,14 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsJsonAsync(new { statusCode = status, message, error });
     }
+
+    private static string StatusTitle(int status) => status switch
+    {
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        409 => "Conflict",
+        422 => "Unprocessable Entity",
+        503 => "Service Unavailable",
+        _ => "Bad Gateway",
+    };
 }

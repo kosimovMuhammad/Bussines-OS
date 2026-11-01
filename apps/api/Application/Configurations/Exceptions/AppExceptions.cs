@@ -46,6 +46,17 @@ public class WhatsAppApiException(string message, string? metaErrorCode = null, 
     public string? FbTraceId { get; } = fbTraceId;
 }
 
+// A WhatsApp Embedded Signup failure with a STABLE machine-readable Code (see
+// WhatsAppOnboardingErrors) that the frontend maps to its own translated text. Rendered by the
+// exception middleware as { statusCode, error, message: { code, message } } - the same shape
+// LimitExceededException uses. Message is a safe, human-readable English fallback; internal
+// exception text is never put in it.
+public class WhatsAppOnboardingException(string code, string message, int statusCode = 422) : Exception(message)
+{
+    public string Code { get; } = code;
+    public int StatusCode { get; } = statusCode;
+}
+
 public class ValidationAppException(IReadOnlyList<string> errors) : Exception("Validation failed")
 {
     public IReadOnlyList<string> Errors { get; } = errors;

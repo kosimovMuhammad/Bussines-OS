@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoicingService, InvoicingService>();
         services.AddScoped<IFilesService, FilesService>();
         services.AddScoped<IWhatsAppService, WhatsAppService>();
+        services.AddScoped<IWhatsAppOnboardingService, WhatsAppOnboardingService>();
         services.AddScoped<IWhatsAppTokenRefreshService, WhatsAppTokenRefreshService>();
         services.AddScoped<ITelegramService, TelegramService>();
         services.AddScoped<IInstagramService, InstagramService>();

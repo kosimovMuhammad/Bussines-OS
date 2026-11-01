@@ -71,7 +71,7 @@ public class MetaWhatsAppClient(
             var (errorMessage, errorCode, fbTraceId) = ParseMetaError(body);
             logger.LogWarning("WhatsApp API rejected {Method}: status={StatusCode} code={Code} fbtrace_id={FbTraceId}",
                 method, (int)response.StatusCode, errorCode, fbTraceId);
-            throw new ExternalServiceException(errorMessage ?? $"WhatsApp API request '{method}' failed: {response.StatusCode}");
+            throw new WhatsAppApiException(errorMessage ?? $"WhatsApp API request '{method}' failed: {response.StatusCode}", errorCode, fbTraceId) { ProviderStatusCode = (int)response.StatusCode };
         }
 
         try

@@ -9,6 +9,10 @@ public class WhatsAppPlatformOptions
     // redeploy; previously tenant calls were pinned to a stale hardcoded version.
     public const string DefaultApiVersion = "v26.0";
 
+    // Main Meta app id (WHATSAPP_APP_ID) - handed to the frontend for FB.init and checked against the
+    // app_id debug_token reports, so a token minted for some other app is never accepted.
+    public string AppId { get; set; } = string.Empty;
+
     public string PhoneNumberId { get; set; } = string.Empty;
     public string ApiVersion { get; set; } = DefaultApiVersion;
 

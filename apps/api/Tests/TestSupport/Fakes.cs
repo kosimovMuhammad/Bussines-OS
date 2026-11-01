@@ -75,9 +75,6 @@ public class FakeWhatsAppService : IWhatsAppService
     public Task<IReadOnlyList<WhatsAppAccountDto>> ListAccountsAsync(string companyId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<WhatsAppAccountDto>>([]);
 
-    public Task<WhatsAppAccountDto> HandleEmbeddedSignupAsync(string companyId, HandleWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
-
     public Task RemoveAccountAsync(string companyId, string actorUserId, string id, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not needed in unit tests");
 
@@ -172,13 +169,30 @@ public class FakeWhatsAppClient : IWhatsAppClient
     public List<(string To, string Message)> SentPlatformTextMessages { get; } = [];
     public List<(string To, string TemplateName, string LanguageCode)> SentPlatformTemplateMessages { get; } = [];
 
-    public Task<WhatsAppOAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+    // ---- Scriptable onboarding surface (Embedded Signup tests) ----
+    public string NextExchangedToken { get; set; } = "business-token";
+    public Exception? NextExchangeException { get; set; }
+    public List<string> ExchangedCodes { get; } = [];
+
+    public Task<WhatsAppOAuthTokenResult> ExchangeCodeAsync(string code, CancellationToken cancellationToken = default)
+    {
+        ExchangedCodes.Add(code);
+        return NextExchangeException is not null
+            ? throw NextExchangeException
+            : Task.FromResult(new WhatsAppOAuthTokenResult(NextExchangedToken, null));
+    }
 
     public Task<WhatsAppOAuthTokenResult> ExchangeForLongLivedTokenAsync(string token, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+        throw new NotSupportedException("Embedded Signup must not run fb_exchange_token");
 
-    public Task SubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Exception? NextSubscribeException { get; set; }
+    public List<string> SubscribedWabaIds { get; } = [];
+
+    public Task SubscribeWebhookAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default)
+    {
+        SubscribedWabaIds.Add(wabaId);
+        return NextSubscribeException is not null ? throw NextSubscribeException : Task.CompletedTask;
+    }
 
     public List<string> UnsubscribedWabaIds { get; } = [];
     public Exception? NextUnsubscribeException { get; set; }
@@ -189,20 +203,45 @@ public class FakeWhatsAppClient : IWhatsAppClient
         return NextUnsubscribeException is not null ? throw NextUnsubscribeException : Task.CompletedTask;
     }
 
+    public WhatsAppTokenInfo? NextTokenInfo { get; set; }
+    public Exception? NextDebugTokenException { get; set; }
+
     public Task<WhatsAppTokenInfo> DebugTokenAsync(string inputToken, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+        NextDebugTokenException is not null
+            ? throw NextDebugTokenException
+            : Task.FromResult(NextTokenInfo ?? throw new NotSupportedException("Set NextTokenInfo"));
+
+    // WABA id -> numbers that WABA lists
+    public Dictionary<string, List<WhatsAppPhoneNumberInfo>> PhoneNumbersByWaba { get; } = [];
+    public Dictionary<string, WhatsAppPhoneNumberInfo> PhoneNumberDetails { get; } = [];
+    public Exception? NextPhoneNumberDetailsException { get; set; }
 
     public Task<IReadOnlyList<WhatsAppPhoneNumberInfo>> GetWabaPhoneNumbersAsync(string accessToken, string wabaId, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+        Task.FromResult<IReadOnlyList<WhatsAppPhoneNumberInfo>>(PhoneNumbersByWaba.TryGetValue(wabaId, out var list) ? list : []);
 
-    public Task<WhatsAppPhoneNumberInfo> GetPhoneNumberAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+    public Task<WhatsAppPhoneNumberInfo> GetPhoneNumberAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default)
+    {
+        if (NextPhoneNumberDetailsException is not null)
+        {
+            throw NextPhoneNumberDetailsException;
+        }
 
-    public Task RegisterPhoneNumberAsync(string accessToken, string phoneNumberId, string pin, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+        return Task.FromResult(PhoneNumberDetails.TryGetValue(phoneNumberId, out var info)
+            ? info
+            : PhoneNumbersByWaba.Values.SelectMany(v => v).First(n => n.Id == phoneNumberId));
+    }
+
+    public Exception? NextRegisterException { get; set; }
+    public List<(string PhoneNumberId, string Pin)> Registered { get; } = [];
+
+    public Task RegisterPhoneNumberAsync(string accessToken, string phoneNumberId, string pin, CancellationToken cancellationToken = default)
+    {
+        Registered.Add((phoneNumberId, pin));
+        return NextRegisterException is not null ? throw NextRegisterException : Task.CompletedTask;
+    }
 
     public Task<string?> RequestSmbAppDataSyncAsync(string accessToken, string phoneNumberId, string syncType, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+        throw new NotSupportedException("History/contact sync is requested in a later phase");
 
     public Task<string?> GetVerifiedNameAsync(string accessToken, string phoneNumberId, CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
@@ -316,5 +355,18 @@ public class FakeOutlookClient : IOutlookClient
     {
         SentEmails.Add((toEmail, subject, body));
         return NextSendException is not null ? throw NextSendException : Task.FromResult(NextMessageId);
+    }
+}
+
+// Round-trips the state so tests can mint and validate it; Validate returns null for anything it
+// did not create (tampered / foreign state).
+public class RoundTripOAuthStateService : IOAuthStateService
+{
+    public string Create(string userId, string companyId, string? locale = null) => $"state|{userId}|{companyId}|{locale}";
+
+    public OAuthStatePayload? Validate(string state)
+    {
+        var parts = state.Split('|');
+        return parts.Length == 4 && parts[0] == "state" ? new OAuthStatePayload(parts[1], parts[2], string.IsNullOrEmpty(parts[3]) ? null : parts[3]) : null;
     }
 }

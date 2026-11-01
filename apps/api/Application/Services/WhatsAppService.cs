@@ -1,4 +1,3 @@
-using System.Data.Common;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
 using BusinessOS.Application.ViewModels.Communications;
@@ -23,25 +22,6 @@ public class WhatsAppService(
     {
         var accounts = await db.WhatsAppAccounts.Where(a => a.CompanyId == companyId).ToListAsync(cancellationToken);
         return accounts.Select(ToDto).ToList();
-    }
-
-    // WhatsApp Embedded Signup (mirrors InstagramService.HandleOAuthCallbackAsync): unlike the
-    // Instagram flow this never leaves the current page (no browser redirect/state param - the
-    // code comes straight from the frontend's FB.login() popup callback), so it's just a normal
-    // authenticated endpoint, not an anonymous OAuth callback. The manual paste-a-token connect
-    // path no longer exists: a user never types an id or token.
-    //
-    // NOTE (to be replaced in Phase 2): this still trusts the browser-reported ids; the reworked
-    // flow derives them from the token via IWhatsAppClient.DebugTokenAsync / GetWabaPhoneNumbersAsync.
-    public async Task<WhatsAppAccountDto> HandleEmbeddedSignupAsync(string companyId, HandleWhatsAppEmbeddedSignupRequest request, CancellationToken cancellationToken = default)
-    {
-        var shortLived = await client.ExchangeCodeAsync(request.Code, cancellationToken);
-        var longLived = await client.ExchangeForLongLivedTokenAsync(shortLived.AccessToken, cancellationToken);
-        var verifiedName = await client.GetVerifiedNameAsync(longLived.AccessToken, request.PhoneNumberId, cancellationToken);
-
-        var account = await UpsertAccountAsync(
-            companyId, request.PhoneNumberId, request.WabaId, longLived.AccessToken, verifiedName, longLived.ExpiresAt, cancellationToken);
-        return ToDto(account);
     }
 
     // Hard delete (matches Instagram): removes the stored encrypted token and frees the globally
@@ -73,50 +53,6 @@ public class WhatsAppService(
         db.WhatsAppAccounts.Remove(account);
         auditLog.Log(companyId, actorUserId, "whatsapp_account.disconnected", "WhatsAppAccount", id, new { account.PhoneNumberId, account.WabaId });
         await db.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task<WhatsAppAccount> UpsertAccountAsync(
-        string companyId, string phoneNumberId, string wabaId, string accessToken, string? verifiedName, DateTime? tokenExpiresAt, CancellationToken cancellationToken)
-    {
-        var account = await db.WhatsAppAccounts
-            .SingleOrDefaultAsync(a => a.CompanyId == companyId && a.PhoneNumberId == phoneNumberId, cancellationToken);
-
-        if (account is null)
-        {
-            account = new WhatsAppAccount { CompanyId = companyId, PhoneNumberId = phoneNumberId };
-            db.WhatsAppAccounts.Add(account);
-        }
-
-        account.WabaId = wabaId;
-        account.EncryptedAccessToken = tokenCipher.Encrypt(accessToken);
-        account.VerifiedName = verifiedName ?? account.VerifiedName;
-        account.TokenExpiresAt = tokenExpiresAt;
-        account.IsActive = true;
-        account.UpdatedAt = DateTime.UtcNow;
-
-        try
-        {
-            await client.SubscribeWebhookAsync(accessToken, wabaId, cancellationToken);
-        }
-        catch (ExternalServiceException ex)
-        {
-            // Same reasoning as InstagramService.UpsertAccountAsync - don't let a Meta-side
-            // subscription failure block saving an otherwise-valid account.
-            logger.LogWarning(ex, "WhatsApp webhook subscription failed for WABA {WabaId}; account will still be saved", wabaId);
-        }
-
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is DbException { SqlState: "23505" })
-        {
-            // phoneNumberId is unique across all companies - a Meta phone_number_id can only
-            // ever belong to one WhatsApp Business account, so this is a real conflict, not a bug.
-            throw new ConflictException("This WhatsApp phone number is already connected to another account.");
-        }
-
-        return account;
     }
 
     public async Task SendAsync(string companyId, SendWhatsAppRequest request, CancellationToken cancellationToken = default)
@@ -282,7 +218,8 @@ public class WhatsAppService(
         }
     }
 
-    private static WhatsAppAccountDto ToDto(WhatsAppAccount a) => new(
+    // Shared with WhatsAppOnboardingService so the account shape the API returns has one definition.
+    internal static WhatsAppAccountDto ToDto(WhatsAppAccount a) => new(
         a.Id, a.CompanyId, a.PhoneNumberId, a.WabaId, a.VerifiedName, a.DisplayPhoneNumber, a.IsActive, a.IsOnBizApp,
         a.ConnectionStatus, a.HistorySyncStatus, a.OnboardedAt, a.TokenExpiresAt, a.CreatedAt);
 }

@@ -17,7 +17,9 @@ namespace BusinessOS.WebApi.Controllers;
 public class WhatsAppController(
     IWhatsAppService whatsAppService,
     ICurrentUserContext currentUser,
-    IValidator<HandleWhatsAppEmbeddedSignupRequest> embeddedSignupValidator,
+    IWhatsAppOnboardingService onboardingService,
+    IValidator<CompleteWhatsAppEmbeddedSignupRequest> completeValidator,
+    IValidator<WhatsAppSignupClientEventRequest> clientEventValidator,
     IValidator<SendWhatsAppRequest> sendValidator,
     IValidator<SendPlatformWhatsAppTextRequest> sendPlatformTextValidator,
     IValidator<SendPlatformWhatsAppTemplateRequest> sendPlatformTemplateValidator) : ControllerBase
@@ -35,14 +37,35 @@ public class WhatsAppController(
         return NoContent();
     }
 
-    // Called by the frontend right after Meta's WhatsApp Embedded Signup popup finishes - see
-    // HandleWhatsAppEmbeddedSignupRequest for where Code/PhoneNumberId/WabaId come from.
-    [HttpPost("embedded-signup")]
-    public async Task<IActionResult> EmbeddedSignup(HandleWhatsAppEmbeddedSignupRequest request, CancellationToken ct)
+    // ---- Meta Embedded Signup (the only way to connect a number) -------------------------------
+
+    // Everything FB.login needs + a signed state. `locale` (en/ru/tj) rides in the state.
+    [HttpGet("embedded-signup/config")]
+    public IActionResult EmbeddedSignupConfig([FromQuery] string? locale) =>
+        Ok(onboardingService.GetConfig(currentUser.UserId!, currentUser.CompanyId!, locale));
+
+    // Called right after the popup returns a code. Body is camelCase JSON: { code, state, session }
+    // where session mirrors the WA_EMBEDDED_SIGNUP message event (all fields are hints only).
+    [HttpPost("embedded-signup/complete")]
+    public async Task<IActionResult> CompleteEmbeddedSignup(CompleteWhatsAppEmbeddedSignupRequest request, CancellationToken ct)
     {
-        await embeddedSignupValidator.ValidateAndThrowAppAsync(request, ct);
-        return Ok(await whatsAppService.HandleEmbeddedSignupAsync(currentUser.CompanyId!, request, ct));
+        await completeValidator.ValidateAndThrowAppAsync(request, ct);
+        return Ok(await onboardingService.CompleteAsync(currentUser.CompanyId!, currentUser.UserId!, request, ct));
     }
+
+    // Popup CANCEL / ERROR events, so failures and Meta's session id are logged server-side; the
+    // response is the stable error code + English fallback text for the UI.
+    [HttpPost("embedded-signup/client-event")]
+    public async Task<IActionResult> ReportEmbeddedSignupClientEvent(WhatsAppSignupClientEventRequest request, CancellationToken ct)
+    {
+        await clientEventValidator.ValidateAndThrowAppAsync(request, ct);
+        return Ok(onboardingService.ReportClientEvent(currentUser.CompanyId!, currentUser.UserId!, request));
+    }
+
+    // Re-runs register / webhook subscription for an account left in NeedsAttention.
+    [HttpPost("accounts/{id}/retry")]
+    public async Task<IActionResult> RetryAccount(string id, CancellationToken ct) =>
+        Ok(await onboardingService.RetryAsync(currentUser.CompanyId!, currentUser.UserId!, id, ct));
 
     [HttpPost("send")]
     public async Task<IActionResult> Send(SendWhatsAppRequest request, CancellationToken ct)

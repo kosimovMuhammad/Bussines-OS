@@ -73,20 +73,39 @@ public class WhatsAppJsonContractTests
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
     [Fact]
-    public void EmbeddedSignupRequest_BindsCamelCase()
+    public void CompleteRequest_BindsCamelCase_IncludingNestedSession()
     {
-        var request = JsonSerializer.Deserialize<HandleWhatsAppEmbeddedSignupRequest>(
-            """{"code":"c","phoneNumberId":"p","wabaId":"w"}""", Web)!;
-        Assert.Equal(("c", "p", "w"), (request.Code, request.PhoneNumberId, request.WabaId));
+        var request = JsonSerializer.Deserialize<CompleteWhatsAppEmbeddedSignupRequest>(
+            """
+            {"code":"c","state":"s","session":{"event":"FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING","phoneNumberId":"p",
+             "messagingAccountIds":["w1"],"businessId":"b","isOnBizApp":true}}
+            """, Web)!;
+
+        Assert.Equal(("c", "s"), (request.Code, request.State));
+        Assert.Equal("FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING", request.Session!.Event);
+        Assert.Equal("p", request.Session.PhoneNumberId);
+        Assert.Equal(["w1"], request.Session.MessagingAccountIds);
+        Assert.True(request.Session.IsOnBizApp);
     }
 
     [Fact]
-    public void EmbeddedSignupRequest_SnakeCaseDoesNotBind_AndFailsValidation()
+    public void CompleteRequest_SnakeCaseSessionDoesNotBind()
     {
-        var request = JsonSerializer.Deserialize<HandleWhatsAppEmbeddedSignupRequest>(
-            """{"code":"c","phone_number_id":"p","waba_id":"w"}""", Web)!;
-        Assert.Null(request.PhoneNumberId);
-        Assert.False(new HandleWhatsAppEmbeddedSignupRequestValidator().Validate(request).IsValid);
+        var request = JsonSerializer.Deserialize<CompleteWhatsAppEmbeddedSignupRequest>(
+            """{"code":"c","state":"s","session":{"phone_number_id":"p","messaging_account_ids":["w1"],"is_on_biz_app":true}}""", Web)!;
+
+        Assert.Null(request.Session!.PhoneNumberId);
+        Assert.Null(request.Session.MessagingAccountIds);
+        Assert.Null(request.Session.IsOnBizApp);
+    }
+
+    [Fact]
+    public void CompleteRequest_MissingCodeOrState_FailsValidation()
+    {
+        var validator = new CompleteWhatsAppEmbeddedSignupRequestValidator();
+        Assert.False(validator.Validate(new CompleteWhatsAppEmbeddedSignupRequest("", "s", null)).IsValid);
+        Assert.False(validator.Validate(new CompleteWhatsAppEmbeddedSignupRequest("c", "", null)).IsValid);
+        Assert.True(validator.Validate(new CompleteWhatsAppEmbeddedSignupRequest("c", "s", null)).IsValid);
     }
 
     [Fact]

@@ -3,15 +3,31 @@ using FluentValidation;
 
 namespace BusinessOS.Application.ViewModels.WhatsApp;
 
-// Sent by the frontend after Meta's WhatsApp Embedded Signup popup completes: Code is the
-// one-time authorization code from the FB.login() callback, PhoneNumberId/WabaId come from the
-// WA_EMBEDDED_SIGNUP postMessage event fired by the same popup - see WhatsAppService for what
-// the backend does with them. No AccessToken here - the whole point is the raw token never
-// reaches the browser.
-//
-// NOTE (to be replaced in Phase 2): the IDs are browser-reported and therefore untrusted; the
-// reworked endpoint derives them server-side from the token instead.
-public record HandleWhatsAppEmbeddedSignupRequest(string Code, string PhoneNumberId, string WabaId);
+// ---- Embedded Signup (JS SDK popup) ----------------------------------------------------------
+
+// GET /whatsapp/embedded-signup/config: everything the frontend needs to call FB.login, so no
+// Meta ids live in frontend env. State is HMAC-signed (user + company + locale, 10 min) and must be
+// echoed back to /complete.
+public record WhatsAppEmbeddedSignupConfigDto(string AppId, string ConfigurationId, string GraphVersion, string SignupVersion, string State);
+
+// The WA_EMBEDDED_SIGNUP message event, as relayed by the frontend. EVERY field is a hint only -
+// the server derives the real WABA / phone number from the token (debug_token + /phone_numbers)
+// and rejects hints that don't match what the token can access. v5 reports messaging_account_ids
+// (replacing waba_id); older versions report wabaId.
+public record WhatsAppSignupSessionInfo(
+    string? Event, string? PhoneNumberId, string? WabaId, IReadOnlyList<string>? MessagingAccountIds, string? BusinessId, bool? IsOnBizApp);
+
+public record CompleteWhatsAppEmbeddedSignupRequest(string Code, string State, WhatsAppSignupSessionInfo? Session);
+
+// Issues are stable codes (WhatsAppOnboardingErrors) for post-signup steps that failed; the account
+// is still saved (ConnectionStatus = NeedsAttention) and POST /whatsapp/accounts/{id}/retry re-runs them.
+public record WhatsAppConnectResultDto(WhatsAppAccountDto Account, IReadOnlyList<string> Issues);
+
+// Popup CANCEL / ERROR events reported by the frontend, so failures (and Meta's session id, which
+// Meta support asks for) are logged server-side. The response maps Meta's code to our stable code.
+public record WhatsAppSignupClientEventRequest(string Event, string? CurrentStep, string? ErrorCode, string? ErrorMessage, string? SessionId);
+
+public record WhatsAppSignupClientEventResultDto(string Code, string Message);
 
 public record SendWhatsAppRequest(string ContactId, string Message);
 
@@ -63,15 +79,27 @@ public static class WhatsAppSyncTypes
     public const string History = "history";
 }
 
-public class HandleWhatsAppEmbeddedSignupRequestValidator : AbstractValidator<HandleWhatsAppEmbeddedSignupRequest>
+public class CompleteWhatsAppEmbeddedSignupRequestValidator : AbstractValidator<CompleteWhatsAppEmbeddedSignupRequest>
 {
-    public HandleWhatsAppEmbeddedSignupRequestValidator()
+    public CompleteWhatsAppEmbeddedSignupRequestValidator()
     {
-        RuleFor(x => x.Code).NotEmpty();
-        RuleFor(x => x.PhoneNumberId).NotEmpty();
-        RuleFor(x => x.WabaId).NotEmpty();
+        RuleFor(x => x.Code).NotEmpty().MaximumLength(2048);
+        RuleFor(x => x.State).NotEmpty().MaximumLength(2048);
     }
 }
+
+public class WhatsAppSignupClientEventRequestValidator : AbstractValidator<WhatsAppSignupClientEventRequest>
+{
+    public WhatsAppSignupClientEventRequestValidator()
+    {
+        RuleFor(x => x.Event).NotEmpty().Must(e => e is "CANCEL" or "ERROR").WithMessage("Event must be CANCEL or ERROR");
+        RuleFor(x => x.CurrentStep).MaximumLength(100);
+        RuleFor(x => x.ErrorCode).MaximumLength(50);
+        RuleFor(x => x.ErrorMessage).MaximumLength(1000);
+        RuleFor(x => x.SessionId).MaximumLength(200);
+    }
+}
+
 
 public class SendWhatsAppRequestValidator : AbstractValidator<SendWhatsAppRequest>
 {
