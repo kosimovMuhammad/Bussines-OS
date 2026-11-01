@@ -235,6 +235,8 @@ public class FakeInstagramApiClient : IInstagramApiClient
     public Exception? NextSendException { get; set; }
     public string? NextMessageId { get; set; } = "mid.fake";
     public List<(string RecipientIgsid, string Text)> SentMessages { get; } = [];
+    public InstagramUserInfo? NextAccountInfo { get; set; }
+    public List<string> SubscribedAccountIds { get; } = [];
 
     public string GetAuthUrl(string state) => throw new NotSupportedException("Not needed in unit tests");
 
@@ -248,7 +250,7 @@ public class FakeInstagramApiClient : IInstagramApiClient
         throw new NotSupportedException("Not needed in unit tests");
 
     public Task<InstagramUserInfo> GetAccountInfoAsync(string accessToken, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not needed in unit tests");
+        NextAccountInfo is { } info ? Task.FromResult(info) : throw new NotSupportedException("Not needed in unit tests");
 
     public Task<string?> SendMessageAsync(string accessToken, string igUserId, string recipientIgsid, string text, CancellationToken cancellationToken = default)
     {
@@ -256,7 +258,11 @@ public class FakeInstagramApiClient : IInstagramApiClient
         return NextSendException is not null ? throw NextSendException : Task.FromResult(NextMessageId);
     }
 
-    public Task SubscribeWebhookAsync(string accessToken, string igUserId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task SubscribeWebhookAsync(string accessToken, string igUserId, CancellationToken cancellationToken = default)
+    {
+        SubscribedAccountIds.Add(igUserId);
+        return Task.CompletedTask;
+    }
 }
 
 public class FakeGmailClient : IGmailClient

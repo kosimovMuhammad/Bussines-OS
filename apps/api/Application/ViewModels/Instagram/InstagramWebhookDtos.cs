@@ -25,4 +25,5 @@ public record InstagramRecipient([property: JsonPropertyName("id")] string Id);
 
 public record InstagramMessage(
     [property: JsonPropertyName("mid")] string Mid,
-    [property: JsonPropertyName("text")] string? Text);
+    [property: JsonPropertyName("text")] string? Text,
+    [property: JsonPropertyName("is_echo")] bool? IsEcho = null);

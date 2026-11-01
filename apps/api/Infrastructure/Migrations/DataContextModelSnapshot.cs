@@ -1358,6 +1358,10 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<string>("AppScopedUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("appScopedUserId");
+
                     b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1395,6 +1399,8 @@ namespace BusinessOS.Infrastructure.Migrations
                         .HasColumnName("username");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AppScopedUserId");
 
                     b.HasIndex("CompanyId");
 

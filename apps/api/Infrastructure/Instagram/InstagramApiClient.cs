@@ -27,7 +27,7 @@ namespace BusinessOS.Infrastructure.Instagram;
 // (https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/get-started).
 // Using "id" instead of "user_id" is exactly what causes GetAccountInfoAsync's resolved id to
 // mismatch messagingEvent.Recipient.Id in InstagramService.ProcessMessagingEventAsync - always
-// read UserId (falling back to Id only if Meta omits user_id for a given token), never Id, when
+// read UserId (there is NO fallback to Id - a missing user_id fails the connect), never Id, when
 // persisting or looking up InstagramAccount.InstagramBusinessAccountId.
 public class InstagramApiClient(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<InstagramApiClient> logger) : IInstagramApiClient
 {
@@ -190,21 +190,7 @@ public class InstagramApiClient(IHttpClientFactory httpClientFactory, IConfigura
 
         try
         {
-            var info = JsonSerializer.Deserialize<InstagramUserInfo>(body, JsonOptions);
-            if (info is null)
-            {
-                throw new ExternalServiceException("Instagram API returned an empty account info result");
-            }
-
-            // Temporary diagnostic - confirms whether Meta actually returns user_id for this
-            // token (it's requested in the fields list above, but some token/flow combinations
-            // have been observed to omit it, silently falling back to the wrong Id - see
-            // InstagramService.UpsertAccountAsync's Id vs UserId comment). Remove once confirmed.
-            logger.LogInformation(
-                "Instagram GetAccountInfo raw: id={Id} user_id={UserId} username={Username}",
-                info.Id, info.UserId, info.Username);
-
-            return info;
+            return InstagramOAuthParser.ParseAccountInfo(body);
         }
         catch (JsonException)
         {

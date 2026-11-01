@@ -13,8 +13,60 @@ public class InstagramTokenRefreshService(IAppDbContext db, IInstagramApiClient 
     // gives plenty of retry headroom if Meta is briefly unavailable on any given tick.
     private static readonly TimeSpan RefreshWindow = TimeSpan.FromDays(10);
 
+    // Rows created before AppScopedUserId existed stored the app-scoped id in
+    // InstagramBusinessAccountId, so no webhook ever matched them. Re-resolve both ids from /me with
+    // the account's own token (no user action needed) and re-subscribe webhooks under the right id.
+    // Runs on every tick, including shortly after startup.
+    private async Task BackfillAccountIdsAsync(CancellationToken cancellationToken)
+    {
+        var pending = await db.InstagramAccounts.Where(a => a.IsActive && a.AppScopedUserId == null).ToListAsync(cancellationToken);
+        foreach (var account in pending)
+        {
+            var originalId = account.InstagramBusinessAccountId;
+            try
+            {
+                var token = tokenCipher.Decrypt(account.EncryptedAccessToken);
+                var info = await client.GetAccountInfoAsync(token, cancellationToken);
+                if (string.IsNullOrWhiteSpace(info.UserId))
+                {
+                    logger.LogWarning("Instagram id backfill: /me returned no user_id for account {AccountId}; reconnect it", account.Id);
+                    continue;
+                }
+
+                var previousId = account.InstagramBusinessAccountId;
+                account.InstagramBusinessAccountId = info.UserId;
+                account.AppScopedUserId = info.Id;
+                account.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+                logger.LogInformation("Instagram id backfill: account {AccountId} id {Previous} -> {Current}", account.Id, previousId, info.UserId);
+
+                try
+                {
+                    await client.SubscribeWebhookAsync(token, info.UserId, cancellationToken);
+                }
+                catch (ExternalServiceException ex)
+                {
+                    logger.LogWarning(ex, "Instagram webhook re-subscription failed for account {AccountId}", account.Id);
+                }
+            }
+            catch (ExternalServiceException ex)
+            {
+                logger.LogWarning(ex, "Instagram id backfill failed for account {AccountId}; reconnect it if this persists", account.Id);
+            }
+            catch (DbUpdateException ex)
+            {
+                logger.LogWarning(ex, "Instagram id backfill hit a conflict for account {AccountId}; reconnect it", account.Id);
+                // Undo the in-memory change so a later SaveChanges in this tick does not retry it.
+                account.InstagramBusinessAccountId = originalId;
+                account.AppScopedUserId = null;
+            }
+        }
+    }
+
     public async Task RefreshDueTokensAsync(CancellationToken cancellationToken = default)
     {
+        await BackfillAccountIdsAsync(cancellationToken);
+
         var cutoff = DateTime.UtcNow.Add(RefreshWindow);
         var dueAccounts = await db.InstagramAccounts
             .Where(a => a.IsActive && a.TokenExpiresAt != null && a.TokenExpiresAt < cutoff)

@@ -58,7 +58,7 @@ public class InstagramService(
 
     public async Task<bool> HandleDeauthorizeAsync(string instagramUserId, CancellationToken cancellationToken = default)
     {
-        var account = await db.InstagramAccounts.SingleOrDefaultAsync(a => a.InstagramBusinessAccountId == instagramUserId, cancellationToken);
+        var account = await db.InstagramAccounts.FirstOrDefaultAsync(a => a.InstagramBusinessAccountId == instagramUserId || a.AppScopedUserId == instagramUserId, cancellationToken);
         if (account is null)
         {
             logger.LogWarning("Instagram deauthorize: no connected account matches user_id {UserId}", instagramUserId);
@@ -73,7 +73,7 @@ public class InstagramService(
 
     public async Task<bool> HandleDataDeletionAsync(string instagramUserId, CancellationToken cancellationToken = default)
     {
-        var account = await db.InstagramAccounts.SingleOrDefaultAsync(a => a.InstagramBusinessAccountId == instagramUserId, cancellationToken);
+        var account = await db.InstagramAccounts.FirstOrDefaultAsync(a => a.InstagramBusinessAccountId == instagramUserId || a.AppScopedUserId == instagramUserId, cancellationToken);
         if (account is null)
         {
             logger.LogWarning("Instagram data deletion: no connected account matches user_id {UserId}", instagramUserId);
@@ -109,21 +109,37 @@ public class InstagramService(
     private async Task<InstagramAccount> UpsertAccountAsync(
         string companyId, InstagramUserInfo accountInfo, string accessToken, DateTime? tokenExpiresAt, CancellationToken cancellationToken)
     {
-        // Use UserId, not Id: Id is the token's app-scoped id, which does NOT match
-        // messagingEvent.Recipient.Id in webhook payloads - UserId is the one Meta documents as
-        // matching webhooks (see InstagramApiClient). Fall back to Id only if Meta ever omits
-        // user_id for a given token, so a connect attempt never hard-fails on that alone.
-        var igUserId = accountInfo.UserId ?? accountInfo.Id;
+        // Two different ids: UserId (/me "user_id") is the professional account id that webhooks
+        // (entry.id / recipient.id), /messages and /subscribed_apps use; Id (/me "id") is the
+        // app-scoped id that never appears in webhooks. There is deliberately NO fallback from
+        // UserId to Id: storing the app-scoped id as the account id is exactly what made every
+        // webhook get dropped, so a missing user_id fails the connect loudly instead.
+        if (string.IsNullOrWhiteSpace(accountInfo.UserId))
+        {
+            throw new ExternalServiceException("Instagram did not return the professional account id (user_id). Please try connecting again.");
+        }
 
+        var igUserId = accountInfo.UserId;
+
+        // Match on the professional id, the app-scoped id, or the app-scoped id stored in the
+        // old InstagramBusinessAccountId column (rows created before AppScopedUserId existed), so
+        // reconnecting repairs a legacy row in place instead of leaving a stale duplicate.
         var account = await db.InstagramAccounts
-            .SingleOrDefaultAsync(a => a.CompanyId == companyId && a.InstagramBusinessAccountId == igUserId, cancellationToken);
+            .Where(a => a.CompanyId == companyId
+                && (a.InstagramBusinessAccountId == igUserId
+                    || a.AppScopedUserId == accountInfo.Id
+                    || a.InstagramBusinessAccountId == accountInfo.Id))
+            .OrderBy(a => a.InstagramBusinessAccountId == igUserId ? 0 : 1)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (account is null)
         {
-            account = new InstagramAccount { CompanyId = companyId, InstagramBusinessAccountId = igUserId };
+            account = new InstagramAccount { CompanyId = companyId };
             db.InstagramAccounts.Add(account);
         }
 
+        account.InstagramBusinessAccountId = igUserId;
+        account.AppScopedUserId = accountInfo.Id;
         account.Username = accountInfo.Username;
         account.EncryptedAccessToken = tokenCipher.Encrypt(accessToken);
         account.TokenExpiresAt = tokenExpiresAt;
@@ -241,7 +257,7 @@ public class InstagramService(
             foreach (var messagingEvent in entry.Messaging)
             {
                 eventCount++;
-                var result = await ProcessMessagingEventAsync(messagingEvent, cancellationToken);
+                var result = await ProcessMessagingEventAsync(entry.Id, messagingEvent, cancellationToken);
                 if (result is not null)
                 {
                     created.Add(result.Value);
@@ -321,22 +337,44 @@ public class InstagramService(
         return ToDto(link);
     }
 
-    private async Task<(Communication Communication, Contact Contact)?> ProcessMessagingEventAsync(InstagramMessagingEvent messagingEvent, CancellationToken cancellationToken)
+    private async Task<(Communication Communication, Contact Contact)?> ProcessMessagingEventAsync(string entryId, InstagramMessagingEvent messagingEvent, CancellationToken cancellationToken)
     {
-        // recipient.id is our own Instagram Business Account - that's how we resolve which
-        // tenant this webhook call belongs to (a single shared /webhooks/instagram endpoint
-        // serves every company, unlike Telegram's per-account webhook secret).
+        // entry.id is always OUR Instagram professional account (for inbound messages and for
+        // echoes alike - recipient.id is only our account on inbound ones, on an echo it is the
+        // customer). It is how we resolve which tenant this webhook call belongs to (a single
+        // shared /webhooks/instagram endpoint serves every company, unlike Telegram's per-account
+        // webhook secret). recipient.id is only a fallback for payloads without an entry id.
+        var accountId = string.IsNullOrEmpty(entryId) ? messagingEvent.Recipient.Id : entryId;
         var account = await db.InstagramAccounts.SingleOrDefaultAsync(
-            a => a.InstagramBusinessAccountId == messagingEvent.Recipient.Id && a.IsActive, cancellationToken);
+            a => a.InstagramBusinessAccountId == accountId && a.IsActive, cancellationToken);
         if (account is null)
         {
             logger.LogWarning(
-                "Instagram webhook: no active InstagramAccount matches recipient.id {RecipientId}; dropping event",
-                messagingEvent.Recipient.Id);
+                "Instagram webhook: no active InstagramAccount matches entry.id {AccountId}; dropping event. " +
+                "If the account was connected before the professional-id fix, reconnect it (or restart the API to backfill).",
+                accountId);
             return null;
         }
 
+        var message = messagingEvent.Message;
         var senderId = messagingEvent.Sender.Id;
+
+        // Echo = a message sent BY our account (sender.id is our account, recipient.id the
+        // customer). Messages sent through this app are already stored in SendAsync, so storing
+        // the echo again would duplicate it, and treating its "sender" as a customer would create
+        // a bogus contact for our own account.
+        if (message?.IsEcho == true || senderId == account.InstagramBusinessAccountId)
+        {
+            logger.LogInformation("Instagram webhook: ignoring echo of our own message {Mid}", message?.Mid);
+            return null;
+        }
+
+        if (message is null || string.IsNullOrEmpty(message.Text))
+        {
+            logger.LogInformation("Instagram webhook: messaging event for sender {SenderId} had no text; skipping", senderId);
+            return null;
+        }
+
         var link = await db.InstagramConversationLinks.SingleOrDefaultAsync(
             l => l.CompanyId == account.CompanyId && l.InstagramScopedId == senderId, cancellationToken);
 
@@ -347,13 +385,6 @@ public class InstagramService(
             logger.LogInformation(
                 "Instagram webhook: created conversation link for company {CompanyId}, sender {SenderId}",
                 account.CompanyId, senderId);
-        }
-
-        var message = messagingEvent.Message;
-        if (message is null || string.IsNullOrEmpty(message.Text))
-        {
-            logger.LogInformation("Instagram webhook: messaging event for sender {SenderId} had no text; skipping", senderId);
-            return null;
         }
 
         var alreadyProcessed = await db.Communications.AnyAsync(c => c.ProviderMessageId == message.Mid, cancellationToken);

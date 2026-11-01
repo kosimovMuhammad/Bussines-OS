@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BusinessOS.Application.ViewModels.Instagram;
 
 namespace BusinessOS.Infrastructure.Instagram;
 
@@ -39,5 +40,38 @@ public static class InstagramOAuthParser
         }
 
         return token.GetString()!;
+    }
+
+    // GET /me?fields=id,user_id,username,name. Parsed by hand (not via the DTO's serializer
+    // mapping) so ids are accepted whether Meta sends them as strings or numbers, and so the
+    // snake_case "user_id" can never silently go unbound again - that is exactly what made the
+    // professional account id come back null and the app-scoped "id" get stored instead.
+    public static InstagramUserInfo ParseAccountInfo(string body)
+    {
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException("Instagram account info is not an object");
+        }
+
+        var id = ReadString(root, "id") ?? throw new JsonException("No id in Instagram account info");
+        return new InstagramUserInfo(id, ReadString(root, "user_id"), ReadString(root, "username") ?? string.Empty, ReadString(root, "name"));
+    }
+
+    private static string? ReadString(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value))
+        {
+            return null;
+        }
+
+        var text = value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.GetRawText(),
+            _ => null,
+        };
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 }

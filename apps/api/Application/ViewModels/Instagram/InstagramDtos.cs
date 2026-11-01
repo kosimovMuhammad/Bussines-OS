@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using BusinessOS.Domain.Enums;
 using FluentValidation;
 
@@ -36,7 +37,11 @@ public record LinkInstagramConversationToContactRequest(string ContactId);
 // Id is the app-scoped id (NOT what webhooks use); UserId is the Instagram professional
 // account id (<IG_ID>) that matches recipient.id/sender.id in webhook notifications - see
 // InstagramApiClient for the full explanation.
-public record InstagramUserInfo(string Id, string? UserId, string Username, string? Name);
+public record InstagramUserInfo(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("user_id")] string? UserId,
+    [property: JsonPropertyName("username")] string Username,
+    [property: JsonPropertyName("name")] string? Name);
 
 // ExpiresAt is null for the short-lived token returned by ExchangeCodeAsync (Meta doesn't
 // give it a meaningful expiry worth storing - it's immediately exchanged for a long-lived

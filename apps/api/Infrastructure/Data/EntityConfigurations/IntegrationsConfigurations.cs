@@ -99,6 +99,7 @@ public class InstagramAccountConfiguration : IEntityTypeConfiguration<InstagramA
         // as WhatsAppAccount.PhoneNumberId and TelegramAccount.BotUsername, so two companies
         // can never both "own" the same Instagram account.
         builder.HasIndex(i => i.InstagramBusinessAccountId).IsUnique();
+        builder.HasIndex(i => i.AppScopedUserId);
     }
 }
 
