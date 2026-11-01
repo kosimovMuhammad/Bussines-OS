@@ -120,7 +120,7 @@ public class InstagramServiceSendTests
             new FakeOAuthStateService(),
             notifier,
             notifications,
-            NullLogger<InstagramService>.Instance);
+            NullLogger<InstagramService>.Instance, new AuditLogService(db.Context));
         return (service, client, notifier);
     }
 

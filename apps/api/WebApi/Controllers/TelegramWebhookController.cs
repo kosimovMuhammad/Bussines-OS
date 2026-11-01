@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -14,13 +12,14 @@ namespace BusinessOS.WebApi.Controllers;
 public class TelegramWebhookController(IBackgroundTaskQueue queue) : ControllerBase
 {
     [HttpPost("{secret}")]
+    [RequestSizeLimit(BusinessOS.WebApi.Webhooks.WebhookSecurity.MaxWebhookBodyBytes)]
     public async Task<IActionResult> Receive(string secret, CancellationToken ct)
     {
         // Telegram echoes the secret_token we registered via setWebhook back on every call in
         // this header - it must match the {secret} segment in the URL we gave Telegram
         // (TelegramService.ConnectAccountAsync sets both to TelegramAccount.WebhookSecret).
         var headerToken = Request.Headers["X-Telegram-Bot-Api-Secret-Token"].ToString();
-        if (!VerifySecret(headerToken, secret))
+        if (!BusinessOS.WebApi.Webhooks.WebhookSecurity.SecretsEqual(headerToken, secret))
         {
             return Unauthorized();
         }
@@ -37,15 +36,5 @@ public class TelegramWebhookController(IBackgroundTaskQueue queue) : ControllerB
         });
 
         return Ok(new { received = true });
-    }
-
-    private static bool VerifySecret(string headerToken, string pathSecret)
-    {
-        if (string.IsNullOrEmpty(headerToken) || string.IsNullOrEmpty(pathSecret))
-        {
-            return false;
-        }
-
-        return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(headerToken), Encoding.UTF8.GetBytes(pathSecret));
     }
 }

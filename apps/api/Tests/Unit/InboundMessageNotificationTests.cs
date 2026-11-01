@@ -101,7 +101,7 @@ public class InboundMessageNotificationTests
         var service = new InstagramService(
             db.Context, new FakeInstagramApiClient(), new FakeTokenCipher(), new FakeOAuthStateService(), new FakeRealtimeNotifier(),
             new NotificationService(db.Context, new AuditLogService(db.Context), new NoopBackgroundTaskQueue(), NullLogger<NotificationService>.Instance),
-            NullLogger<InstagramService>.Instance);
+            NullLogger<InstagramService>.Instance, new AuditLogService(db.Context));
 
         var payload = """
         {"object":"instagram","entry":[{"id":"ig-business-1","time":1700000000,"messaging":[
@@ -218,7 +218,7 @@ public class InboundMessageNotificationTests
         var service = new InstagramService(
             db.Context, new FakeInstagramApiClient(), new FakeTokenCipher(), new FakeOAuthStateService(), new FakeRealtimeNotifier(),
             new NotificationService(db.Context, new AuditLogService(db.Context), new NoopBackgroundTaskQueue(), NullLogger<NotificationService>.Instance),
-            NullLogger<InstagramService>.Instance);
+            NullLogger<InstagramService>.Instance, new AuditLogService(db.Context));
 
         // No InstagramConversationLink exists yet for this sender.
         var payload = """

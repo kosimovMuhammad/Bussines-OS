@@ -217,6 +217,8 @@ static void ValidateRequiredConfiguration(IConfiguration configuration)
         errors.Add("PUBLIC_URL is required (set via user secrets or an environment variable) - it must be a public HTTPS URL (e.g. an ngrok tunnel in local dev) since Google/Microsoft cannot redirect to localhost");
     }
 
+    errors.AddRange(BusinessOS.WebApi.Webhooks.WebhookConfigurationValidator.Validate(configuration));
+
     if (errors.Count > 0)
     {
         throw new InvalidOperationException("Invalid configuration:\n" + string.Join('\n', errors));

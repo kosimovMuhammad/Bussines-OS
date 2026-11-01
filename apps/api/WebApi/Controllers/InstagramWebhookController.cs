@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
 using System.Text;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Services;
+using BusinessOS.WebApi.Webhooks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -27,8 +27,7 @@ public class InstagramWebhookController(
         [FromQuery(Name = "hub.verify_token")] string? verifyToken,
         [FromQuery(Name = "hub.challenge")] string? challenge)
     {
-        var expected = configuration["INSTAGRAM_VERIFY_TOKEN"];
-        if (mode == "subscribe" && !string.IsNullOrEmpty(expected) && verifyToken == expected)
+        if (WebhookSecurity.IsValidVerification(mode, verifyToken, configuration["INSTAGRAM_VERIFY_TOKEN"]))
         {
             return Content(challenge ?? string.Empty, "text/plain");
         }
@@ -37,21 +36,19 @@ public class InstagramWebhookController(
     }
 
     [HttpPost]
+    [RequestSizeLimit(WebhookSecurity.MaxWebhookBodyBytes)]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
-        Request.EnableBuffering();
-        using var reader = new StreamReader(Request.Body, leaveOpen: true);
-        var rawBody = await reader.ReadToEndAsync(ct);
-        Request.Body.Position = 0;
+        var rawBytes = await WebhookSecurity.ReadBodyAsync(Request, ct);
 
         var signatureHeader = Request.Headers["X-Hub-Signature-256"].ToString();
-        var appSecret = configuration["INSTAGRAM_APP_SECRET"];
-        if (!VerifySignature(rawBody, signatureHeader, appSecret))
+        if (!WebhookSecurity.IsValidMetaSignature(rawBytes, signatureHeader, configuration["INSTAGRAM_APP_SECRET"]))
         {
             logger.LogWarning("Instagram webhook signature verification failed");
             return Unauthorized();
         }
 
+        var rawBody = Encoding.UTF8.GetString(rawBytes);
         logger.LogInformation("Instagram webhook received, queuing for processing");
 
         await queue.QueueAsync(async (sp, token) =>
@@ -61,21 +58,5 @@ public class InstagramWebhookController(
         });
 
         return Ok(new { received = true });
-    }
-
-    private static bool VerifySignature(string body, string signatureHeader, string? appSecret)
-    {
-        const string prefix = "sha256=";
-        if (string.IsNullOrEmpty(appSecret) || string.IsNullOrEmpty(signatureHeader) || !signatureHeader.StartsWith(prefix))
-        {
-            return false;
-        }
-
-        var providedHex = signatureHeader[prefix.Length..];
-
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(appSecret));
-        var computedHex = Convert.ToHexStringLower(hmac.ComputeHash(Encoding.UTF8.GetBytes(body)));
-
-        return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(computedHex), Encoding.UTF8.GetBytes(providedHex));
     }
 }

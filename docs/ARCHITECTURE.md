@@ -67,7 +67,12 @@ with a stable domain.
 
 Instagram uses "Instagram API with Instagram Login": the user authorizes on Instagram's own page,
 the callback exchanges code -> short-lived -> long-lived (~60 day) token, which a daily hosted
-service refreshes before expiry.
+service refreshes before expiry. The OAuth `state` is HMAC-signed and also carries the UI locale
+(en/ru/tj) so the callback redirects to `/{locale}/instagram`. Meta compliance endpoints (public, verified
+with `signed_request` + the Instagram app secret): `POST /instagram/deauthorize` and
+`POST /instagram/data-deletion` (+ `GET /instagram/data-deletion/status`). Webhooks (Instagram, WhatsApp,
+Telegram) share `WebApi/Webhooks/WebhookSecurity` (constant-time compare, raw-byte HMAC, 1 MB body cap);
+Meta key sets are validated at startup by `WebhookConfigurationValidator`.
 
 ## Background jobs (`Infrastructure/BackgroundJobs`)
 

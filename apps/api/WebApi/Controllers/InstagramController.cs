@@ -38,9 +38,73 @@ public class InstagramController(
         return Ok(await instagramService.ConnectAccountAsync(currentUser.CompanyId!, request, ct));
     }
 
+    // `locale` (en/ru/tj) is signed into the OAuth state so the callback can send the user back to
+    // /{locale}/instagram in the language they started in. Unknown values fall back to "en".
     [HttpGet("connect")]
-    public IActionResult Connect() =>
-        Ok(new OAuthUrlDto(instagramService.GetAuthUrl(currentUser.UserId!, currentUser.CompanyId!)));
+    public IActionResult Connect([FromQuery] string? locale) =>
+        Ok(new OAuthUrlDto(instagramService.GetAuthUrl(currentUser.UserId!, currentUser.CompanyId!, locale)));
+
+    [HttpDelete("accounts/{id}")]
+    public async Task<IActionResult> DisconnectAccount(string id, CancellationToken ct)
+    {
+        await instagramService.DisconnectAccountAsync(currentUser.CompanyId!, currentUser.UserId!, id, ct);
+        return NoContent();
+    }
+
+    // Meta "Deauthorize callback URL": POST application/x-www-form-urlencoded with signed_request.
+    // Public by necessity, so authenticity rests solely on the HMAC with the Instagram app secret.
+    [HttpPost("deauthorize")]
+    [AllowAnonymous]
+    [RequestSizeLimit(16 * 1024)]
+    public async Task<IActionResult> Deauthorize([FromForm(Name = "signed_request")] string? signedRequest, CancellationToken ct)
+    {
+        if (!MetaSignedRequest.TryGetUserId(signedRequest, configuration["INSTAGRAM_APP_SECRET"], out var userId))
+        {
+            logger.LogWarning("Instagram deauthorize rejected: invalid signed_request");
+            return BadRequest(new { error = "invalid_signed_request" });
+        }
+
+        await instagramService.HandleDeauthorizeAsync(userId, ct);
+        return Ok();
+    }
+
+    // Meta "Data deletion request URL": must answer JSON { url, confirmation_code }, where url is a
+    // page the user can open to check the request's status.
+    [HttpPost("data-deletion")]
+    [AllowAnonymous]
+    [RequestSizeLimit(16 * 1024)]
+    public async Task<IActionResult> DataDeletion([FromForm(Name = "signed_request")] string? signedRequest, CancellationToken ct)
+    {
+        var appSecret = configuration["INSTAGRAM_APP_SECRET"];
+        if (!MetaSignedRequest.TryGetUserId(signedRequest, appSecret, out var userId))
+        {
+            logger.LogWarning("Instagram data deletion rejected: invalid signed_request");
+            return BadRequest(new { error = "invalid_signed_request" });
+        }
+
+        await instagramService.HandleDataDeletionAsync(userId, ct);
+
+        var code = MetaSignedRequest.CreateConfirmationCode(appSecret!);
+        var publicUrl = (configuration["PUBLIC_URL"] ?? string.Empty).TrimEnd('/');
+        return Ok(new
+        {
+            url = $"{publicUrl}/instagram/data-deletion/status?code={Uri.EscapeDataString(code)}",
+            confirmation_code = code,
+        });
+    }
+
+    // Human-readable status page opened from the data-deletion `url`. Stateless: a code is valid
+    // iff we signed it, and deletion is performed synchronously before the code is issued.
+    [HttpGet("data-deletion/status")]
+    [AllowAnonymous]
+    public ContentResult DataDeletionStatus([FromQuery] string? code)
+    {
+        var valid = MetaSignedRequest.IsValidConfirmationCode(code, configuration["INSTAGRAM_APP_SECRET"]);
+        var text = valid
+            ? $"Your Instagram data deletion request (confirmation code {System.Net.WebUtility.HtmlEncode(code)}) has been completed."
+            : "Unknown or invalid confirmation code.";
+        return Content($"<!doctype html><html><head><meta charset=\"utf-8\"><title>Data deletion</title></head><body><p>{text}</p></body></html>", "text/html");
+    }
 
     // This is a browser redirect target (Instagram itself navigates the user's browser here),
     // not an API call from our own frontend JS - so on both success and failure it redirects
@@ -65,47 +129,50 @@ public class InstagramController(
         CancellationToken ct)
     {
         var frontendUrl = (configuration["FRONTEND_URL"] ?? "http://localhost:5173").TrimEnd('/');
+        // Locale comes from the signed state (access_denied redirects include it too); an invalid
+        // or expired state just falls back to the default locale.
+        var pageUrl = $"{frontendUrl}/{instagramService.ResolveLocale(state)}/instagram";
 
         if (!string.IsNullOrEmpty(error))
         {
             logger.LogInformation("Instagram OAuth callback returned error={Error} reason={Reason}", error, errorReason);
             return error == "access_denied"
-                ? FailureRedirect(frontendUrl, "access_denied", "Instagram access was not granted.")
-                : FailureRedirect(frontendUrl, "provider_error", errorDescription ?? "Instagram reported an error.");
+                ? FailureRedirect(pageUrl, "access_denied", "Instagram access was not granted.")
+                : FailureRedirect(pageUrl, "provider_error", errorDescription ?? "Instagram reported an error.");
         }
 
         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
         {
-            return FailureRedirect(frontendUrl, "invalid_callback", "The Instagram callback was incomplete. Please try again.");
+            return FailureRedirect(pageUrl, "invalid_callback", "The Instagram callback was incomplete. Please try again.");
         }
 
         try
         {
             var account = await instagramService.HandleOAuthCallbackAsync(code, state, ct);
-            return Redirect($"{frontendUrl}/en/instagram?connected=true&username={Uri.EscapeDataString(account.Username)}");
+            return Redirect($"{pageUrl}?connected=true&username={Uri.EscapeDataString(account.Username)}");
         }
         catch (UnauthorizedAppException)
         {
-            return FailureRedirect(frontendUrl, "invalid_state", "The connection request expired. Please start again.");
+            return FailureRedirect(pageUrl, "invalid_state", "The connection request expired. Please start again.");
         }
         catch (ConflictException ex)
         {
-            return FailureRedirect(frontendUrl, "already_connected", ex.Message);
+            return FailureRedirect(pageUrl, "already_connected", ex.Message);
         }
         catch (ExternalServiceException ex)
         {
             logger.LogWarning(ex, "Instagram OAuth callback failed at the provider");
-            return FailureRedirect(frontendUrl, "provider_error", "Instagram rejected the request. Please try again.");
+            return FailureRedirect(pageUrl, "provider_error", "Instagram rejected the request. Please try again.");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Instagram OAuth callback failed");
-            return FailureRedirect(frontendUrl, "unknown", "Something went wrong while connecting Instagram.");
+            return FailureRedirect(pageUrl, "unknown", "Something went wrong while connecting Instagram.");
         }
     }
 
-    private RedirectResult FailureRedirect(string frontendUrl, string errorCode, string message) =>
-        Redirect($"{frontendUrl}/en/instagram?connected=false&error={Uri.EscapeDataString(errorCode)}&message={Uri.EscapeDataString(message)}");
+    private RedirectResult FailureRedirect(string pageUrl, string errorCode, string message) =>
+        Redirect($"{pageUrl}?connected=false&error={Uri.EscapeDataString(errorCode)}&message={Uri.EscapeDataString(message)}");
 
     [HttpPost("send")]
     public async Task<IActionResult> Send(SendInstagramMessageRequest request, CancellationToken ct)

@@ -18,12 +18,13 @@ public class HmacOAuthStateService : IOAuthStateService
         _secret = Encoding.UTF8.GetBytes(raw);
     }
 
-    public string Create(string userId, string companyId)
+    public string Create(string userId, string companyId, string? locale = null)
     {
         var payload = JsonSerializer.Serialize(new
         {
             userId,
             companyId,
+            locale,
             exp = DateTimeOffset.UtcNow.Add(Lifetime).ToUnixTimeSeconds(),
         });
 
@@ -57,7 +58,8 @@ public class HmacOAuthStateService : IOAuthStateService
                 return null;
             }
 
-            return new OAuthStatePayload(root.GetProperty("userId").GetString()!, root.GetProperty("companyId").GetString()!);
+            var locale = root.TryGetProperty("locale", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() : null;
+            return new OAuthStatePayload(root.GetProperty("userId").GetString()!, root.GetProperty("companyId").GetString()!, locale);
         }
         catch (JsonException)
         {

@@ -144,7 +144,7 @@ public class FakePaymentProvider : IPaymentProvider
 
 public class FakeOAuthStateService : IOAuthStateService
 {
-    public string Create(string userId, string companyId) => $"{userId}:{companyId}";
+    public string Create(string userId, string companyId, string? locale = null) => $"{userId}:{companyId}";
 
     public OAuthStatePayload? Validate(string state) => null;
 }

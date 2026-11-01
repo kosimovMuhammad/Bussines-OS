@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text.Json;
 using BusinessOS.Application.Abstraction;
 using BusinessOS.Application.Configurations.Exceptions;
+using BusinessOS.Application.Constants;
 using BusinessOS.Application.ViewModels.Communications;
 using BusinessOS.Application.ViewModels.Instagram;
 using BusinessOS.Domain.Entities;
@@ -18,7 +19,8 @@ public class InstagramService(
     IOAuthStateService oauthState,
     IRealtimeNotifier notifier,
     INotificationService notifications,
-    ILogger<InstagramService> logger) : IInstagramService
+    ILogger<InstagramService> logger,
+    IAuditLogService auditLog) : IInstagramService
 {
     public async Task<IReadOnlyList<InstagramAccountDto>> ListAccountsAsync(string companyId, CancellationToken cancellationToken = default)
     {
@@ -36,8 +38,56 @@ public class InstagramService(
         return ToDto(account);
     }
 
-    public string GetAuthUrl(string userId, string companyId) =>
-        client.GetAuthUrl(oauthState.Create(userId, companyId));
+    public string GetAuthUrl(string userId, string companyId, string? locale = null) =>
+        client.GetAuthUrl(oauthState.Create(userId, companyId, AppLocales.Normalize(locale)));
+
+    public string ResolveLocale(string? state) =>
+        AppLocales.Normalize(string.IsNullOrEmpty(state) ? null : oauthState.Validate(state)?.Locale);
+
+    // Hard delete: removes the stored (encrypted) token with the row. Conversation links,
+    // contacts and message history stay - they belong to the company, not to the connection.
+    public async Task DisconnectAccountAsync(string companyId, string actorUserId, string id, CancellationToken cancellationToken = default)
+    {
+        var account = await db.InstagramAccounts.SingleOrDefaultAsync(a => a.Id == id && a.CompanyId == companyId, cancellationToken)
+            ?? throw new NotFoundException("Instagram account not found");
+
+        db.InstagramAccounts.Remove(account);
+        auditLog.Log(companyId, actorUserId, "instagram_account.disconnected", "InstagramAccount", id, new { account.InstagramBusinessAccountId, account.Username });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> HandleDeauthorizeAsync(string instagramUserId, CancellationToken cancellationToken = default)
+    {
+        var account = await db.InstagramAccounts.SingleOrDefaultAsync(a => a.InstagramBusinessAccountId == instagramUserId, cancellationToken);
+        if (account is null)
+        {
+            logger.LogWarning("Instagram deauthorize: no connected account matches user_id {UserId}", instagramUserId);
+            return false;
+        }
+
+        db.InstagramAccounts.Remove(account);
+        auditLog.Log(account.CompanyId, null, "instagram_account.deauthorized", "InstagramAccount", account.Id, new { account.InstagramBusinessAccountId });
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> HandleDataDeletionAsync(string instagramUserId, CancellationToken cancellationToken = default)
+    {
+        var account = await db.InstagramAccounts.SingleOrDefaultAsync(a => a.InstagramBusinessAccountId == instagramUserId, cancellationToken);
+        if (account is null)
+        {
+            logger.LogWarning("Instagram data deletion: no connected account matches user_id {UserId}", instagramUserId);
+            return false;
+        }
+
+        var links = await db.InstagramConversationLinks.Where(l => l.CompanyId == account.CompanyId).ToListAsync(cancellationToken);
+        db.InstagramConversationLinks.RemoveRange(links);
+        db.InstagramAccounts.Remove(account);
+        auditLog.Log(account.CompanyId, null, "instagram_account.data_deleted", "InstagramAccount", account.Id,
+            new { account.InstagramBusinessAccountId, ConversationLinks = links.Count });
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 
     // OAuth authorization-code flow (mirrors CalendarConnectionService.HandleCallbackAsync):
     // the user only ever authenticates on Instagram's own consent screen - no token is ever
