@@ -6,6 +6,7 @@ using BusinessOS.Infrastructure;
 using BusinessOS.Infrastructure.Realtime;
 using BusinessOS.WebApi.Authorization;
 using BusinessOS.WebApi.Health;
+using BusinessOS.WebApi.Logging;
 using BusinessOS.WebApi.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -24,6 +25,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
+// Development only: also write logs to logs/dev-*.log (gitignored) so they can be read from disk.
+var devLogPath = builder.AddDevFileLogging();
 
 // Background jobs (token refresh, workflow scheduler, ...) are secondary to serving requests and
 // webhooks. The default, StopHost, means a single faulted job takes the whole API down. Ignore
@@ -167,6 +170,11 @@ app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = c => c.Tags.
 
 app.MapControllers();
 app.MapHub<MessagingHub>("/hubs/messaging");
+
+if (devLogPath is not null)
+{
+    app.Logger.LogInformation("Development file log: {LogPath}", devLogPath);
+}
 
 app.Run();
 

@@ -147,6 +147,9 @@ try {
     # --- 6. Run --------------------------------------------------------------------------------
     Step "Starting API (profile: $LaunchProfile)"
     $verb = if ($Watch) { 'watch' } else { 'run' }
+    $logFile = Join-Path $webApi ("logs\dev-{0}.log" -f (Get-Date -Format 'yyyyMMdd'))
+    Write-Host "    Log file (Development): $logFile" -ForegroundColor DarkGray
+    Write-Host "    Tail it with: Get-Content '$logFile' -Wait -Tail 50" -ForegroundColor DarkGray
     dotnet $verb --project WebApi --launch-profile $LaunchProfile
 }
 finally { Pop-Location }
